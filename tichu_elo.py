@@ -82,20 +82,17 @@ def calculate_ratings(
 
 def render_leaderboard(ratings: dict[str, float], games_played: dict[str, int]) -> str:
     ordered = sorted(PLAYERS, key=lambda p: (-ratings[p], PLAYERS[p]))
-    width = 40
     rows = [
-        "╔" + "═" * width + "╗",
-        "║" + "Tichu Leader Board".center(width) + "║",
-        "╠══════╦══════════════╦══════════╦═══════╣",
-        "║ Rank ║ Player       ║   Rating ║ Games ║",
-        "╠══════╬══════════════╬══════════╬═══════╣",
+        "Tichu Leader Board",
+        "",
+        "| Rank | Player | Rating | Games |",
+        "|---:|:---|---:|---:|",
     ]
     for rank, code in enumerate(ordered, 1):
         rows.append(
-            f"║ {rank:^4} ║ {PLAYERS[code]:<12} ║ {ratings[code]:>8.1f} ║"
-            f" {games_played[code]:^5} ║"
+            f"| {rank} | {PLAYERS[code]} | {ratings[code]:.1f} |"
+            f" {games_played[code]} |"
         )
-    rows.append("╚══════╩══════════════╩══════════╩═══════╝")
     return "\n".join(rows)
 
 
