@@ -83,10 +83,9 @@ def calculate_ratings(
 def render_leaderboard(ratings: dict[str, float], games_played: dict[str, int]) -> str:
     ordered = sorted(PLAYERS, key=lambda p: (-ratings[p], PLAYERS[p]))
     rows = [
-        "Tichu Leader Board",
-        "",
-        "| Rank | Player | Rating | Games |",
-        "|---:|:---|---:|---:|",
+        "| Tichu Leader Board | Player | Rating | Games |",
+        "|:---|:---|---:|---:|",
+        "| Rank | | | |",
     ]
     for rank, code in enumerate(ordered, 1):
         rows.append(
