@@ -2,7 +2,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tichu_elo import Game, calculate_ratings, load_games, parse_game, render_leaderboard
+from tichu_elo import (
+    Game,
+    calculate_ratings,
+    create_fair_matchup,
+    load_games,
+    parse_game,
+    render_leaderboard,
+    render_matchup,
+)
 
 
 class TichuEloTests(unittest.TestCase):
@@ -34,6 +42,35 @@ class TichuEloTests(unittest.TestCase):
         self.assertIn("|           Tichu Leader Board           |", output)
         self.assertIn("| Rank | Player       |   Rating | Games |", output)
         self.assertNotRegex(output, r"[╔╗╚╝║═╠╣╦╩╬]")
+
+    def test_creates_fairest_team_split(self):
+        ratings = {"C": 800, "Y": 1200, "S": 900, "R": 1000, "N": 1100}
+        matchup = create_fair_matchup(ratings, ["C", "Y", "S", "N"])
+        teams = {frozenset(matchup.team_a), frozenset(matchup.team_b)}
+        self.assertEqual(teams, {frozenset(("C", "Y")), frozenset(("S", "N"))})
+        self.assertEqual(matchup.rating_gap, 0)
+
+    def test_five_players_includes_bench(self):
+        ratings = {player: 1000 for player in "CYSRN"}
+        matchup = create_fair_matchup(ratings, list("CYSRN"))
+        self.assertIsNotNone(matchup.benched)
+        self.assertEqual(len(set(matchup.team_a + matchup.team_b)), 4)
+
+    def test_rejects_invalid_team_selection(self):
+        ratings = {player: 1000 for player in "CYSRN"}
+        with self.assertRaisesRegex(ValueError, "exactly 4 or 5"):
+            create_fair_matchup(ratings, ["C", "Y", "S"])
+        with self.assertRaisesRegex(ValueError, "only once"):
+            create_fair_matchup(ratings, ["C", "C", "Y", "S"])
+
+    def test_matchup_output_is_discord_ready(self):
+        ratings = {player: 1000 for player in "CYSRN"}
+        matchup = create_fair_matchup(ratings, list("CYSRN"))
+        output = render_matchup(matchup, ratings)
+        self.assertTrue(output.startswith("```text\nFair Tichu Matchup"))
+        self.assertTrue(output.endswith("\n```"))
+        self.assertIn("Rating gap:", output)
+        self.assertIn("Benched:", output)
 
 
 if __name__ == "__main__":

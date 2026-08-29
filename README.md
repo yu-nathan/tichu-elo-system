@@ -9,6 +9,20 @@ Run it with:
 python3 tichu_elo.py
 ```
 
+Generate the fairest matchup from all players:
+
+```sh
+python3 tichu_elo.py --teams
+```
+
+The command chooses four players, balances the two teams by average Elo rating,
+and lists the benched player. To balance a specific group of four, provide their
+initials:
+
+```sh
+python3 tichu_elo.py --teams C Y S N
+```
+
 To add a result, append another line to `games.txt` and run the command again:
 
 ```text

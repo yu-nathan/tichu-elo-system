@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 
 
@@ -28,6 +29,19 @@ class Game:
     score_a: int
     team_b: str
     score_b: int
+
+
+@dataclass(frozen=True)
+class Matchup:
+    team_a: tuple[str, str]
+    team_b: tuple[str, str]
+    rating_a: float
+    rating_b: float
+    benched: str | None = None
+
+    @property
+    def rating_gap(self) -> float:
+        return abs(self.rating_a - self.rating_b)
 
 
 def parse_game(line: str, line_number: int) -> Game:
@@ -99,11 +113,74 @@ def render_leaderboard(ratings: dict[str, float], games_played: dict[str, int]) 
     return "\n".join(rows)
 
 
+def create_fair_matchup(ratings: dict[str, float], players: list[str]) -> Matchup:
+    normalized = [player.upper() for player in players]
+    if len(normalized) not in (4, 5):
+        raise ValueError("team generation requires exactly 4 or 5 players")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("each player may be selected only once")
+    unknown = [player for player in normalized if player not in PLAYERS]
+    if unknown:
+        raise ValueError(f"unknown player initial: {unknown[0]}")
+
+    candidates: list[Matchup] = []
+    for active_players in combinations(sorted(normalized), 4):
+        benched = next((p for p in normalized if p not in active_players), None)
+        # Requiring the first player on team A avoids evaluating each split twice.
+        first = active_players[0]
+        for partner in active_players[1:]:
+            team_a = tuple(sorted((first, partner)))
+            team_b = tuple(sorted(p for p in active_players if p not in team_a))
+            rating_a = sum(ratings[p] for p in team_a) / 2
+            rating_b = sum(ratings[p] for p in team_b) / 2
+            candidates.append(Matchup(team_a, team_b, rating_a, rating_b, benched))
+
+    return min(
+        candidates,
+        key=lambda matchup: (
+            matchup.rating_gap,
+            matchup.benched or "",
+            matchup.team_a,
+            matchup.team_b,
+        ),
+    )
+
+
+def render_matchup(matchup: Matchup, ratings: dict[str, float]) -> str:
+    def team_line(label: str, team: tuple[str, str], average: float) -> str:
+        players = " + ".join(PLAYERS[player] for player in team)
+        return f"{label}: {players} (avg {average:.1f})"
+
+    rows = [
+        "```text",
+        "Fair Tichu Matchup",
+        "",
+        team_line("Team 1", matchup.team_a, matchup.rating_a),
+        team_line("Team 2", matchup.team_b, matchup.rating_b),
+        f"Rating gap: {matchup.rating_gap:.1f}",
+    ]
+    if matchup.benched:
+        rows.append(
+            f"Benched: {PLAYERS[matchup.benched]} ({ratings[matchup.benched]:.1f})"
+        )
+    rows.append("```")
+    return "\n".join(rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scores", nargs="?", type=Path, default=Path("games.txt"))
     parser.add_argument("--initial", type=float, default=1000.0)
     parser.add_argument("--k-factor", type=float, default=32.0)
+    parser.add_argument(
+        "--teams",
+        nargs="*",
+        metavar="PLAYER",
+        help=(
+            "generate the fairest teams; optionally provide exactly four or five "
+            "player initials (defaults to all players)"
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -111,7 +188,14 @@ def main() -> None:
         ratings, games_played = calculate_ratings(games, args.initial, args.k_factor)
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    print(render_leaderboard(ratings, games_played))
+    if args.teams is not None:
+        try:
+            matchup = create_fair_matchup(ratings, args.teams or list(PLAYERS))
+        except ValueError as error:
+            parser.error(str(error))
+        print(render_matchup(matchup, ratings))
+    else:
+        print(render_leaderboard(ratings, games_played))
 
 
 if __name__ == "__main__":
