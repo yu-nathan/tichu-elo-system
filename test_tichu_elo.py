@@ -26,11 +26,13 @@ class TichuEloTests(unittest.TestCase):
             path.write_text("# old games\n\nCY - 595 NS - 1005 # game one\n")
             self.assertEqual(len(load_games(path)), 1)
 
-    def test_leaderboard_is_copy_friendly_markdown(self):
+    def test_leaderboard_is_discord_ready(self):
         ratings, games_played = calculate_ratings([])
         output = render_leaderboard(ratings, games_played)
-        self.assertTrue(output.startswith("| Tichu Leader Board | | | |"))
-        self.assertIn("| Rank | Player | Rating | Games |", output)
+        self.assertTrue(output.startswith("```text\n"))
+        self.assertTrue(output.endswith("\n```"))
+        self.assertIn("|           Tichu Leader Board           |", output)
+        self.assertIn("| Rank | Player       |   Rating | Games |", output)
         self.assertNotRegex(output, r"[╔╗╚╝║═╠╣╦╩╬]")
 
 
