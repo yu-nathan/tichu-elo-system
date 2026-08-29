@@ -29,8 +29,8 @@ class TichuEloTests(unittest.TestCase):
     def test_leaderboard_is_copy_friendly_markdown(self):
         ratings, games_played = calculate_ratings([])
         output = render_leaderboard(ratings, games_played)
-        self.assertTrue(output.startswith("| Tichu Leader Board | Player | Rating | Games |"))
-        self.assertIn("| Rank | | | |", output)
+        self.assertTrue(output.startswith("| Tichu Leader Board | | | |"))
+        self.assertIn("| Rank | Player | Rating | Games |", output)
         self.assertNotRegex(output, r"[╔╗╚╝║═╠╣╦╩╬]")
 
 
