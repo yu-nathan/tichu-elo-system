@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 from dataclasses import dataclass
-from itertools import combinations
+from itertools import combinations, zip_longest
 from pathlib import Path
 
 
@@ -16,10 +16,11 @@ PLAYERS = {
     "S": "Sreekar M.",
     "R": "Rebekah S.",
     "N": "Nathan Y.",
+    "J": "Jet M.",
 }
 
 GAME_RE = re.compile(
-    r"^\s*([CYSRN]{2})\s*-\s*(-?\d+)\s+([CYSRN]{2})\s*-\s*(-?\d+)\s*$"
+    r"^\s*([A-Z]{2})\s*-\s*(-?\d+)\s+([A-Z]{2})\s*-\s*(-?\d+)\s*$"
 )
 
 
@@ -37,7 +38,7 @@ class Matchup:
     team_b: tuple[str, str]
     rating_a: float
     rating_b: float
-    benched: str | None = None
+    benched: tuple[str, ...] = ()
 
     @property
     def rating_gap(self) -> float:
@@ -49,6 +50,9 @@ def parse_game(line: str, line_number: int) -> Game:
     if not match:
         raise ValueError(f"line {line_number}: invalid game format: {line!r}")
     team_a, score_a, team_b, score_b = match.groups()
+    unknown = sorted((set(team_a) | set(team_b)) - set(PLAYERS))
+    if unknown:
+        raise ValueError(f"line {line_number}: unknown player initial: {unknown[0]}")
     if len(set(team_a)) != 2 or len(set(team_b)) != 2:
         raise ValueError(f"line {line_number}: a player cannot partner with themselves")
     if set(team_a) & set(team_b):
@@ -79,10 +83,15 @@ def calculate_ratings(
         expected_a = 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
         actual_a = 1.0 if game.score_a > game.score_b else 0.0
 
-        # Normalize margin by Tichu's 1,000-point winning target. Negative
-        # scores need no special case: the arithmetic margin remains valid.
-        margin_multiplier = 1 + abs(game.score_a - game.score_b) / 1000
-        delta_a = k_factor * margin_multiplier * (actual_a - expected_a)
+        # Scores determine only the winner, not the size of the rating change.
+        # When neither team reaches 1,000, this is a shorter game to 500 and
+        # uses half the normal K-factor.
+        effective_k = (
+            k_factor / 2
+            if game.score_a < 1000 and game.score_b < 1000
+            else k_factor
+        )
+        delta_a = effective_k * (actual_a - expected_a)
 
         for player in game.team_a:
             ratings[player] += delta_a
@@ -94,29 +103,56 @@ def calculate_ratings(
     return ratings, games_played
 
 
-def render_leaderboard(ratings: dict[str, float], games_played: dict[str, int]) -> str:
+def render_leaderboard(
+    ratings: dict[str, float], games_played: dict[str, int], games: list[Game] | None = None
+) -> str:
     ordered = sorted(PLAYERS, key=lambda p: (-ratings[p], PLAYERS[p]))
-    rows = [
-        "```text",
-        "+----------------------------------------+",
-        "|           Tichu Leader Board           |",
-        "+------+--------------+----------+-------+",
-        "| Rank | Player       |   Rating | Games |",
-        "+------+--------------+----------+-------+",
+    leaderboard_rows = [
+        "╔════════════════════════════════════════╗",
+        "║" + "Tichu Leader Board".center(40) + "║",
+        "╠══════╦══════════════╦══════════╦═══════╣",
+        "║ Rank ║ Player       ║   Rating ║ Games ║",
+        "╠══════╬══════════════╬══════════╬═══════╣",
     ]
     for rank, code in enumerate(ordered, 1):
-        rows.append(
-            f"| {rank:^4} | {PLAYERS[code]:<12} | {ratings[code]:>8.1f} |"
-            f" {games_played[code]:^5} |"
+        leaderboard_rows.append(
+            f"║ {rank:^4} ║ {PLAYERS[code]:<12} ║ {ratings[code]:>8.1f} ║"
+            f" {games_played[code]:^5} ║"
         )
-    rows.extend(["+------+--------------+----------+-------+", "```"])
-    return "\n".join(rows)
+    leaderboard_rows.append("╚══════╩══════════════╩══════════╩═══════╝")
+
+    all_games = games or []
+    recent_games = all_games[-10:]
+    first_game_number = len(all_games) - len(recent_games) + 1
+    history_rows = [
+        "╔═════════════════════════════════╗",
+        "║" + "Last 10 Games".center(33) + "║",
+        "╠═════╦════╦════════╦════╦════════╣",
+        "║  #  ║ T1 ║  Score ║ T2 ║  Score ║",
+        "╠═════╬════╬════════╬════╬════════╣",
+    ]
+    if recent_games:
+        for game_number, game in enumerate(recent_games, first_game_number):
+            history_rows.append(
+                f"║ {game_number:>3} ║ {game.team_a:^2} ║ {game.score_a:>6} ║"
+                f" {game.team_b:^2} ║ {game.score_b:>6} ║"
+            )
+    else:
+        history_rows.append("║" + "No games played".center(33) + "║")
+    history_rows.append("╚═════╩════╩════════╩════╩════════╝")
+
+    left_width = max(len(row) for row in leaderboard_rows)
+    combined_rows = [
+        left.ljust(left_width) + "   " + right
+        for left, right in zip_longest(leaderboard_rows, history_rows, fillvalue="")
+    ]
+    return "\n".join(["```text", *combined_rows, "```"])
 
 
 def create_fair_matchup(ratings: dict[str, float], players: list[str]) -> Matchup:
     normalized = [player.upper() for player in players]
-    if len(normalized) not in (4, 5):
-        raise ValueError("team generation requires exactly 4 or 5 players")
+    if len(normalized) < 4:
+        raise ValueError("team generation requires at least 4 players")
     if len(set(normalized)) != len(normalized):
         raise ValueError("each player may be selected only once")
     unknown = [player for player in normalized if player not in PLAYERS]
@@ -125,7 +161,7 @@ def create_fair_matchup(ratings: dict[str, float], players: list[str]) -> Matchu
 
     candidates: list[Matchup] = []
     for active_players in combinations(sorted(normalized), 4):
-        benched = next((p for p in normalized if p not in active_players), None)
+        benched = tuple(sorted(p for p in normalized if p not in active_players))
         # Requiring the first player on team A avoids evaluating each split twice.
         first = active_players[0]
         for partner in active_players[1:]:
@@ -139,7 +175,7 @@ def create_fair_matchup(ratings: dict[str, float], players: list[str]) -> Matchu
         candidates,
         key=lambda matchup: (
             matchup.rating_gap,
-            matchup.benched or "",
+            matchup.benched,
             matchup.team_a,
             matchup.team_b,
         ),
@@ -160,9 +196,10 @@ def render_matchup(matchup: Matchup, ratings: dict[str, float]) -> str:
         f"Rating gap: {matchup.rating_gap:.1f}",
     ]
     if matchup.benched:
-        rows.append(
-            f"Benched: {PLAYERS[matchup.benched]} ({ratings[matchup.benched]:.1f})"
+        benched_players = ", ".join(
+            f"{PLAYERS[player]} ({ratings[player]:.1f})" for player in matchup.benched
         )
+        rows.append(f"Benched: {benched_players}")
     rows.append("```")
     return "\n".join(rows)
 
@@ -177,7 +214,7 @@ def main() -> None:
         nargs="*",
         metavar="PLAYER",
         help=(
-            "generate the fairest teams; optionally provide exactly four or five "
+            "generate the fairest teams; optionally provide four or more "
             "player initials (defaults to all players)"
         ),
     )
@@ -195,7 +232,7 @@ def main() -> None:
             parser.error(str(error))
         print(render_matchup(matchup, ratings))
     else:
-        print(render_leaderboard(ratings, games_played))
+        print(render_leaderboard(ratings, games_played, games))
 
 
 if __name__ == "__main__":

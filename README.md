@@ -9,6 +9,9 @@ Run it with:
 python3 tichu_elo.py
 ```
 
+The Discord-ready output places the leaderboard beside a chronological history
+of the 10 most recent games.
+
 Generate the fairest matchup from all players:
 
 ```sh
@@ -16,7 +19,7 @@ python3 tichu_elo.py --teams
 ```
 
 The command chooses four players, balances the two teams by average Elo rating,
-and lists the benched player. To balance a specific group of four, provide their
+and lists any benched players. To balance a specific group of four, provide their
 initials:
 
 ```sh
@@ -40,14 +43,14 @@ Expected win probability uses the standard Elo formula with a 400-point scale.
 The winning team receives the same rating increase for each partner, and each
 opponent loses that amount.
 
-The default K-factor is 32. Score margin is normalized against Tichu's 1,000-point
-winning target:
+The default K-factor is 32. Ratings use only the win or loss; the point
+differential does not affect the update:
 
 ```text
-rating change = 32 * (1 + absolute score difference / 1000)
-                    * (actual result - expected result)
+rating change = K-factor * (actual result - expected result)
 ```
 
-Thus a 1,000-point margin doubles the usual update. Negative scores are handled
-naturally by the score difference. The starting rating and K-factor can be changed
-with `--initial` and `--k-factor`.
+If both final scores are below 1,000, the result is treated as a game to 500 and
+uses half the normal K-factor (16 by default). Negative scores are supported and
+still only determine which team won. The starting rating and K-factor can be
+changed with `--initial` and `--k-factor`.
