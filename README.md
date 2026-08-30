@@ -9,8 +9,9 @@ Run it with:
 python3 tichu_elo.py
 ```
 
-The Discord-ready output places the leaderboard beside a chronological history
-of the 10 most recent games.
+The Discord-ready output creates separate code blocks for the leaderboard and a
+chronological history of the 10 most recent games. Copy each block into its own
+Discord message for a mobile-friendly layout.
 
 Generate the fairest matchup from all players:
 

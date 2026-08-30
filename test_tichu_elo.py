@@ -51,6 +51,8 @@ class TichuEloTests(unittest.TestCase):
         output = render_leaderboard(ratings, games_played, [])
         self.assertTrue(output.startswith("```text\n"))
         self.assertTrue(output.endswith("\n```"))
+        self.assertEqual(output.count("```text"), 2)
+        self.assertIn("```\n\n```text\n", output)
         title_row = next(line for line in output.splitlines() if "Tichu Leader Board" in line)
         self.assertTrue(title_row.startswith("║"))
         self.assertTrue(title_row.endswith("║"))

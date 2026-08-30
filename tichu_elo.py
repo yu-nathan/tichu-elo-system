@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 from dataclasses import dataclass
-from itertools import combinations, zip_longest
+from itertools import combinations
 from pathlib import Path
 
 
@@ -141,12 +141,9 @@ def render_leaderboard(
         history_rows.append("║" + "No games played".center(33) + "║")
     history_rows.append("╚═════╩════╩════════╩════╩════════╝")
 
-    left_width = max(len(row) for row in leaderboard_rows)
-    combined_rows = [
-        left.ljust(left_width) + "   " + right
-        for left, right in zip_longest(leaderboard_rows, history_rows, fillvalue="")
-    ]
-    return "\n".join(["```text", *combined_rows, "```"])
+    leaderboard_message = "\n".join(["```text", *leaderboard_rows, "```"])
+    history_message = "\n".join(["```text", *history_rows, "```"])
+    return leaderboard_message + "\n\n" + history_message
 
 
 def create_fair_matchup(ratings: dict[str, float], players: list[str]) -> Matchup:
