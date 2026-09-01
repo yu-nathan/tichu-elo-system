@@ -14,17 +14,42 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tichu Elo",
-  description: "Live Tichu standings, match history, and fair team generation.",
+  metadataBase: new URL("https://tichu-elo.nyu1997.chatgpt.site"),
+  title: "Tichu Elo Leaderboard",
+  description:
+    "Track Tichu Elo ratings, recent games, and generate balanced or randomized teams.",
+  alternates: { canonical: "/" },
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
   openGraph: {
-    title: "Tichu Elo",
-    description: "Live standings, recent games, and balanced Tichu teams.",
-    images: [{ url: "/og.png", width: 1200, height: 630 }],
+    type: "website",
+    url: "/",
+    siteName: "Tichu Elo",
+    title: "Tichu Elo Leaderboard",
+    description:
+      "Live standings, recent results, and quick matchmaking for our Tichu group.",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Tichu Elo leaderboard and matchmaker",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tichu Elo",
-    description: "Live standings, recent games, and balanced Tichu teams.",
+    title: "Tichu Elo Leaderboard",
+    description:
+      "Live standings, recent results, and quick matchmaking for our Tichu group.",
     images: ["/og.png"],
   },
 };
