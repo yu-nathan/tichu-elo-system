@@ -1,0 +1,5 @@
+dist
+.vinext
+node_modules
+drizzle/*.sql
+public/*.png
