@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import type { AppData, Game, Player } from "@/lib/store";
 
 type Props = { initialData: AppData };
+type CallCounts = {
+  grandTichus: number;
+  successfulGrandTichus: number;
+  tichus: number;
+  successfulTichus: number;
+};
 type GameDraft = {
   id?: number;
   teamAPlayer1Id: number;
@@ -17,7 +23,15 @@ type GameDraft = {
   scoreA: number;
   scoreB: number;
   playedAt: string;
+  callStats: CallCounts[] | null;
 };
+
+const emptyCallCounts = (): CallCounts => ({
+  grandTichus: 0,
+  successfulGrandTichus: 0,
+  tichus: 0,
+  successfulTichus: 0,
+});
 
 const toLocalDateTime = (value: string) =>
   new Date(value).toISOString().slice(0, 16);
@@ -30,6 +44,7 @@ const newGameDraft = (playerIds: number[]): GameDraft => ({
   scoreA: 0,
   scoreB: 0,
   playedAt: toLocalDateTime(new Date().toISOString()),
+  callStats: null,
 });
 
 export const AdminPanel = ({ initialData }: Props) => {
@@ -81,7 +96,20 @@ export const AdminPanel = ({ initialData }: Props) => {
 
   const submitGame = async (event: { preventDefault: () => void }) => {
     event.preventDefault();
-    const body = { ...draft, playedAt: new Date(draft.playedAt).toISOString() };
+    const playerIds = [
+      draft.teamAPlayer1Id,
+      draft.teamAPlayer2Id,
+      draft.teamBPlayer1Id,
+      draft.teamBPlayer2Id,
+    ];
+    const body = {
+      ...draft,
+      playedAt: new Date(draft.playedAt).toISOString(),
+      callStats: draft.callStats?.map((stat, index) => ({
+        playerId: playerIds[index],
+        ...stat,
+      })),
+    };
     const saved = await mutate(
       draft.id ? `/api/games/${draft.id}` : "/api/games",
       draft.id ? "PATCH" : "POST",
@@ -91,6 +119,12 @@ export const AdminPanel = ({ initialData }: Props) => {
   };
 
   const editGame = (game: Game) => {
+    const playerIds = [
+      game.teamAPlayer1Id,
+      game.teamAPlayer2Id,
+      game.teamBPlayer1Id,
+      game.teamBPlayer2Id,
+    ];
     setDraft({
       id: game.id,
       teamAPlayer1Id: game.teamAPlayer1Id,
@@ -100,6 +134,21 @@ export const AdminPanel = ({ initialData }: Props) => {
       scoreA: game.scoreA,
       scoreB: game.scoreB,
       playedAt: toLocalDateTime(game.playedAt),
+      callStats: game.callStats.length
+        ? playerIds.map((playerId) => {
+            const stat = game.callStats.find(
+              (entry) => entry.playerId === playerId,
+            );
+            return stat
+              ? {
+                  grandTichus: stat.grandTichus,
+                  successfulGrandTichus: stat.successfulGrandTichus,
+                  tichus: stat.tichus,
+                  successfulTichus: stat.successfulTichus,
+                }
+              : emptyCallCounts();
+          })
+        : null,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -205,6 +254,47 @@ export const AdminPanel = ({ initialData }: Props) => {
                       setDraft({ ...draft, playedAt: value })
                     }
                   />
+                  <div className="rounded-lg border border-white/8 p-3">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span>
+                        <span className="block font-medium">Tichu calls</span>
+                        <span className="text-xs text-muted-foreground">
+                          {draft.callStats
+                            ? "Record attempts and successful calls per player."
+                            : "N/A for this game"}
+                        </span>
+                      </span>
+                      <input
+                        aria-label="Record Tichu calls for this game"
+                        type="checkbox"
+                        className="size-4 accent-emerald-400"
+                        checked={Boolean(draft.callStats)}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            callStats: event.target.checked
+                              ? Array.from({ length: 4 }, emptyCallCounts)
+                              : null,
+                          })
+                        }
+                      />
+                    </div>
+                    {draft.callStats ? (
+                      <CallStatsFields
+                        draft={draft}
+                        data={data}
+                        onChange={(index, key, value) => {
+                          const callStats = draft.callStats!.map(
+                            (stat, statIndex) =>
+                              statIndex === index
+                                ? { ...stat, [key]: Number(value) }
+                                : stat,
+                          );
+                          setDraft({ ...draft, callStats });
+                        }}
+                      />
+                    ) : null}
+                  </div>
                   <div className="flex gap-2">
                     <Button disabled={busy} type="submit">
                       <Plus /> {draft.id ? "Save changes" : "Add game"}
@@ -247,6 +337,9 @@ export const AdminPanel = ({ initialData }: Props) => {
                         <p className="text-xs text-muted-foreground">
                           {new Date(game.playedAt).toLocaleString()}
                         </p>
+                        <p className="text-xs text-muted-foreground">
+                          Calls: {game.callStats.length ? "recorded" : "N/A"}
+                        </p>
                       </div>
                       <Button
                         size="icon-sm"
@@ -277,14 +370,78 @@ export const AdminPanel = ({ initialData }: Props) => {
   );
 };
 
+const CallStatsFields = ({
+  draft,
+  data,
+  onChange,
+}: {
+  draft: GameDraft;
+  data: AppData;
+  onChange: (index: number, key: keyof CallCounts, value: string) => void;
+}) => {
+  const playerIds = [
+    draft.teamAPlayer1Id,
+    draft.teamAPlayer2Id,
+    draft.teamBPlayer1Id,
+    draft.teamBPlayer2Id,
+  ];
+  return (
+    <div className="mt-4 space-y-3">
+      {draft.callStats!.map((stat, index) => {
+        const player = data.players.find(({ id }) => id === playerIds[index]);
+        return (
+          <div key={index} className="rounded-md bg-black/15 p-3">
+            <p className="mb-2 text-xs font-semibold text-emerald-200">
+              {player?.name ?? `Player ${index + 1}`}
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Field
+                label="Grand Tichus"
+                type="number"
+                min={0}
+                value={stat.grandTichus}
+                onChange={(value) => onChange(index, "grandTichus", value)}
+              />
+              <Field
+                label="GT successful"
+                type="number"
+                min={0}
+                value={stat.successfulGrandTichus}
+                onChange={(value) =>
+                  onChange(index, "successfulGrandTichus", value)
+                }
+              />
+              <Field
+                label="Tichus"
+                type="number"
+                min={0}
+                value={stat.tichus}
+                onChange={(value) => onChange(index, "tichus", value)}
+              />
+              <Field
+                label="T successful"
+                type="number"
+                min={0}
+                value={stat.successfulTichus}
+                onChange={(value) => onChange(index, "successfulTichus", value)}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 type FieldProps = {
   label: string;
   type: string;
   value: string | number;
+  min?: number;
   onChange: (value: string) => void;
 };
 
-const Field = ({ label, type, value, onChange }: FieldProps) => (
+const Field = ({ label, type, value, min, onChange }: FieldProps) => (
   <label className="block text-sm">
     <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
       {label}
@@ -292,6 +449,7 @@ const Field = ({ label, type, value, onChange }: FieldProps) => (
     <Input
       required
       type={type}
+      min={min}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />

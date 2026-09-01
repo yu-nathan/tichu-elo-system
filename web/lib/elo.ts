@@ -14,9 +14,25 @@ export type EloGame = {
   teamBPlayer2Id: number;
   scoreB: number;
   playedAt: string;
+  callStats?: GameCallStat[];
 };
 
-export type RatingEntry = EloPlayer & { rating: number; gamesPlayed: number };
+export type GameCallStat = {
+  playerId: number;
+  grandTichus: number;
+  successfulGrandTichus: number;
+  tichus: number;
+  successfulTichus: number;
+};
+
+export type RatingEntry = EloPlayer & {
+  rating: number;
+  gamesPlayed: number;
+  grandTichus: number;
+  successfulGrandTichus: number;
+  tichus: number;
+  successfulTichus: number;
+};
 export type FairMatch = {
   teamA: [RatingEntry, RatingEntry];
   teamB: [RatingEntry, RatingEntry];
@@ -33,7 +49,17 @@ export const calculateRatings = (
   kFactor = 32,
 ): RatingEntry[] => {
   const state = new Map(
-    players.map((player) => [player.id, { rating: initial, gamesPlayed: 0 }]),
+    players.map((player) => [
+      player.id,
+      {
+        rating: initial,
+        gamesPlayed: 0,
+        grandTichus: 0,
+        successfulGrandTichus: 0,
+        tichus: 0,
+        successfulTichus: 0,
+      },
+    ]),
   );
   const ordered = [...games].sort(
     (a, b) => a.playedAt.localeCompare(b.playedAt) || a.id - b.id,
@@ -54,6 +80,7 @@ export const calculateRatings = (
     for (const id of teamA) {
       const current = state.get(id)!;
       state.set(id, {
+        ...current,
         rating: current.rating + delta,
         gamesPlayed: current.gamesPlayed + 1,
       });
@@ -61,8 +88,21 @@ export const calculateRatings = (
     for (const id of teamB) {
       const current = state.get(id)!;
       state.set(id, {
+        ...current,
         rating: current.rating - delta,
         gamesPlayed: current.gamesPlayed + 1,
+      });
+    }
+    for (const stat of game.callStats ?? []) {
+      const current = state.get(stat.playerId);
+      if (!current) continue;
+      state.set(stat.playerId, {
+        ...current,
+        grandTichus: current.grandTichus + stat.grandTichus,
+        successfulGrandTichus:
+          current.successfulGrandTichus + stat.successfulGrandTichus,
+        tichus: current.tichus + stat.tichus,
+        successfulTichus: current.successfulTichus + stat.successfulTichus,
       });
     }
   }

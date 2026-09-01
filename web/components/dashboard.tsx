@@ -155,17 +155,19 @@ export const Dashboard = ({
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="px-0">
-              <div className="grid grid-cols-[3.25rem_1fr_5.25rem_2.5rem] px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:grid-cols-[4rem_1fr_6rem_3rem] sm:px-6">
+            <CardContent className="overflow-x-auto px-0">
+              <div className="grid min-w-[42rem] grid-cols-[4rem_1fr_6rem_3rem_5rem_5rem] px-6 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 <span>Rank</span>
                 <span>Player</span>
                 <span className="text-right">Rating</span>
                 <span className="text-right">GP</span>
+                <span className="text-right">GT</span>
+                <span className="text-right">Tichu</span>
               </div>
               {active.map((player, index) => (
                 <div
                   key={player.id}
-                  className="grid grid-cols-[3.25rem_1fr_5.25rem_2.5rem] items-center border-t border-white/6 px-4 py-3.5 sm:grid-cols-[4rem_1fr_6rem_3rem] sm:px-6"
+                  className="grid min-w-[42rem] grid-cols-[4rem_1fr_6rem_3rem_5rem_5rem] items-center border-t border-white/6 px-6 py-3.5"
                 >
                   <span
                     className={
@@ -183,6 +185,14 @@ export const Dashboard = ({
                   <span className="text-right font-mono text-muted-foreground">
                     {player.gamesPlayed}
                   </span>
+                  <SuccessRatio
+                    successes={player.successfulGrandTichus}
+                    attempts={player.grandTichus}
+                  />
+                  <SuccessRatio
+                    successes={player.successfulTichus}
+                    attempts={player.tichus}
+                  />
                 </div>
               ))}
             </CardContent>
@@ -363,6 +373,7 @@ export const Dashboard = ({
                             +{differential}
                           </p>
                         </div>
+                        <GameCallSummary game={game} />
                       </div>
                     );
                   })}
@@ -392,6 +403,43 @@ export const Dashboard = ({
         </section>
       </div>
     </main>
+  );
+};
+
+const SuccessRatio = ({
+  successes,
+  attempts,
+}: {
+  successes: number;
+  attempts: number;
+}) => (
+  <span className="text-right font-mono text-xs text-muted-foreground">
+    {attempts ? `${successes}/${attempts}` : "N/A"}
+  </span>
+);
+
+const GameCallSummary = ({ game }: { game: AppData["games"][number] }) => {
+  const players = new Map([
+    [game.teamAPlayer1Id, game.teamAPlayer1Name],
+    [game.teamAPlayer2Id, game.teamAPlayer2Name],
+    [game.teamBPlayer1Id, game.teamBPlayer1Name],
+    [game.teamBPlayer2Id, game.teamBPlayer2Name],
+  ]);
+  return (
+    <div className="col-span-4 mt-1 border-t border-white/6 pt-2 text-[11px] text-muted-foreground">
+      {game.callStats.length ? (
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {game.callStats.map((stat) => (
+            <span key={stat.playerId}>
+              {players.get(stat.playerId)} · GT {stat.successfulGrandTichus}/
+              {stat.grandTichus} · T {stat.successfulTichus}/{stat.tichus}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span>Calls: N/A</span>
+      )}
+    </div>
   );
 };
 

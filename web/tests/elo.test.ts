@@ -102,3 +102,25 @@ test("builds a match only from the selected players", () => {
     [1, 2, 3, 5],
   );
 });
+
+test("aggregates per-player Tichu and Grand Tichu success ratios", () => {
+  const result = calculateRatings(players, [
+    {
+      ...game(1, 1000, 0),
+      callStats: [
+        {
+          playerId: 1,
+          grandTichus: 2,
+          successfulGrandTichus: 1,
+          tichus: 3,
+          successfulTichus: 2,
+        },
+      ],
+    },
+  ]);
+  const player = result.find(({ id }) => id === 1)!;
+  assert.equal(player.grandTichus, 2);
+  assert.equal(player.successfulGrandTichus, 1);
+  assert.equal(player.tichus, 3);
+  assert.equal(player.successfulTichus, 2);
+});

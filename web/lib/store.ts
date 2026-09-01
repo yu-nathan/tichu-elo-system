@@ -3,6 +3,7 @@ import {
   calculateRatings,
   createFairMatch,
   type EloGame,
+  type GameCallStat,
   type EloPlayer,
   type RatingEntry,
 } from "@/lib/elo";
@@ -16,6 +17,7 @@ export type Game = EloGame & {
   teamACode: string;
   teamBCode: string;
   createdBy: string;
+  callStats: GameCallStat[];
 };
 export type AppData = {
   players: Player[];
@@ -68,6 +70,15 @@ export const ensureDatabase = async () => {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS game_player_stats (
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+      grand_tichus INTEGER NOT NULL,
+      successful_grand_tichus INTEGER NOT NULL,
+      tichus INTEGER NOT NULL,
+      successful_tichus INTEGER NOT NULL,
+      PRIMARY KEY (game_id, player_id)
+    )`),
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_games_played_at_id ON games(played_at, id)",
     ),
@@ -119,6 +130,19 @@ export const getAppData = async (): Promise<AppData> => {
   ).all<Game>();
   const players = playerResult.results;
   const games = gameResult.results;
+  const statResult = await env.DB.prepare(
+    `SELECT game_id AS gameId, player_id AS playerId,
+      grand_tichus AS grandTichus, successful_grand_tichus AS successfulGrandTichus,
+      tichus, successful_tichus AS successfulTichus
+    FROM game_player_stats`,
+  ).all<GameCallStat & { gameId: number }>();
+  const statsByGame = new Map<number, GameCallStat[]>();
+  for (const { gameId, ...stat } of statResult.results) {
+    const stats = statsByGame.get(gameId) ?? [];
+    stats.push(stat);
+    statsByGame.set(gameId, stats);
+  }
+  for (const game of games) game.callStats = statsByGame.get(game.id) ?? [];
   const leaderboard = calculateRatings(players, games).sort(
     (a, b) => b.rating - a.rating || a.name.localeCompare(b.name),
   );
@@ -202,12 +226,74 @@ const gameInput = (input: unknown) => {
   if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB))
     throw new Error("Scores must be whole numbers.");
   if (scoreA === scoreB) throw new Error("Tied games are not supported.");
-  return { ids, scoreA, scoreB, playedAt };
+  const callStatsInput = data.callStats;
+  let callStats: GameCallStat[] = [];
+  if (callStatsInput !== null && callStatsInput !== undefined) {
+    if (!Array.isArray(callStatsInput) || callStatsInput.length !== 4)
+      throw new Error("Call stats require one entry for each player.");
+    callStats = callStatsInput.map((value) => {
+      const stat = value as Record<string, unknown>;
+      const parsed = {
+        playerId: Number(stat.playerId),
+        grandTichus: Number(stat.grandTichus),
+        successfulGrandTichus: Number(stat.successfulGrandTichus),
+        tichus: Number(stat.tichus),
+        successfulTichus: Number(stat.successfulTichus),
+      };
+      if (
+        !Object.values(parsed).every(Number.isInteger) ||
+        parsed.grandTichus < 0 ||
+        parsed.successfulGrandTichus < 0 ||
+        parsed.tichus < 0 ||
+        parsed.successfulTichus < 0
+      )
+        throw new Error("Call counts must be non-negative whole numbers.");
+      if (
+        parsed.successfulGrandTichus > parsed.grandTichus ||
+        parsed.successfulTichus > parsed.tichus
+      )
+        throw new Error("Successful calls cannot exceed total calls.");
+      return parsed;
+    });
+    const statIds = callStats
+      .map(({ playerId }) => playerId)
+      .sort((a, b) => a - b);
+    if (statIds.join(",") !== [...ids].sort((a, b) => a - b).join(","))
+      throw new Error("Call stats must match the four selected players.");
+  }
+  return { ids, scoreA, scoreB, playedAt, callStats };
+};
+
+const saveCallStats = async (gameId: number, callStats: GameCallStat[]) => {
+  const db = env.DB;
+  await db
+    .prepare("DELETE FROM game_player_stats WHERE game_id = ?")
+    .bind(gameId)
+    .run();
+  if (!callStats.length) return;
+  await db.batch(
+    callStats.map((stat) =>
+      db
+        .prepare(
+          `INSERT INTO game_player_stats
+        (game_id, player_id, grand_tichus, successful_grand_tichus, tichus, successful_tichus)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          gameId,
+          stat.playerId,
+          stat.grandTichus,
+          stat.successfulGrandTichus,
+          stat.tichus,
+          stat.successfulTichus,
+        ),
+    ),
+  );
 };
 
 export const createGame = async (input: unknown, email: string) => {
   await ensureDatabase();
-  const { ids, scoreA, scoreB, playedAt } = gameInput(input);
+  const { ids, scoreA, scoreB, playedAt, callStats } = gameInput(input);
   const rows = await env.DB.prepare(
     `SELECT id FROM players WHERE id IN (?, ?, ?, ?) AND archived_at IS NULL`,
   )
@@ -216,7 +302,7 @@ export const createGame = async (input: unknown, email: string) => {
   if (rows.results.length !== 4)
     throw new Error("New games may only use active players.");
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  const result = await env.DB.prepare(
     `INSERT INTO games
     (team_a_player_1_id, team_a_player_2_id, score_a, team_b_player_1_id, team_b_player_2_id, score_b, played_at, created_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -234,11 +320,12 @@ export const createGame = async (input: unknown, email: string) => {
       now,
     )
     .run();
+  await saveCallStats(Number(result.meta.last_row_id), callStats);
 };
 
 export const updateGame = async (id: number, input: unknown) => {
   await ensureDatabase();
-  const { ids, scoreA, scoreB, playedAt } = gameInput(input);
+  const { ids, scoreA, scoreB, playedAt, callStats } = gameInput(input);
   const rows = await env.DB.prepare(
     "SELECT id FROM players WHERE id IN (?, ?, ?, ?)",
   )
@@ -263,6 +350,7 @@ export const updateGame = async (id: number, input: unknown) => {
     )
     .run();
   if (!result.meta.changes) throw new Error("Game not found.");
+  await saveCallStats(id, callStats);
 };
 
 export const deleteGame = async (id: number) => {

@@ -2,17 +2,19 @@ import type { AppData } from "@/lib/store";
 
 export const discordLeaderboard = (data: AppData): string => {
   const active = data.leaderboard.filter((player) => !player.archivedAt);
+  const ratio = (successes: number, attempts: number) =>
+    attempts ? `${successes}/${attempts}` : "N/A";
   const nameWidth = Math.max(12, ...active.map((player) => player.name.length));
-  const top = `╔${"═".repeat(6)}╦${"═".repeat(nameWidth + 2)}╦${"═".repeat(10)}╦${"═".repeat(7)}╗`;
-  const middle = `╠${"═".repeat(6)}╬${"═".repeat(nameWidth + 2)}╬${"═".repeat(10)}╬${"═".repeat(7)}╣`;
-  const bottom = `╚${"═".repeat(6)}╩${"═".repeat(nameWidth + 2)}╩${"═".repeat(10)}╩${"═".repeat(7)}╝`;
+  const top = `╔${"═".repeat(6)}╦${"═".repeat(nameWidth + 2)}╦${"═".repeat(10)}╦${"═".repeat(7)}╦${"═".repeat(7)}╦${"═".repeat(7)}╗`;
+  const middle = `╠${"═".repeat(6)}╬${"═".repeat(nameWidth + 2)}╬${"═".repeat(10)}╬${"═".repeat(7)}╬${"═".repeat(7)}╬${"═".repeat(7)}╣`;
+  const bottom = `╚${"═".repeat(6)}╩${"═".repeat(nameWidth + 2)}╩${"═".repeat(10)}╩${"═".repeat(7)}╩${"═".repeat(7)}╩${"═".repeat(7)}╝`;
   const width = top.length - 2;
   const rows = [
     "```text",
     `╔${"═".repeat(width)}╗`,
     `║${"Tichu Leader Board".padStart(Math.floor((width + 18) / 2)).padEnd(width)}║`,
     top.replace(/^╔/, "╠").replace(/╗$/, "╣"),
-    `║ Rank ║ ${"Player".padEnd(nameWidth)} ║   Rating ║ Games ║`,
+    `║ Rank ║ ${"Player".padEnd(nameWidth)} ║   Rating ║ Games ║  GT   ║ Tichu ║`,
     middle,
     ...active.map(
       (player, index) =>
@@ -20,7 +22,7 @@ export const discordLeaderboard = (data: AppData): string => {
           .padStart(2)
           .padEnd(
             4,
-          )} ║ ${player.name.padEnd(nameWidth)} ║ ${player.rating.toFixed(1).padStart(8)} ║ ${String(player.gamesPlayed).padStart(3).padEnd(5)} ║`,
+          )} ║ ${player.name.padEnd(nameWidth)} ║ ${player.rating.toFixed(1).padStart(8)} ║ ${String(player.gamesPlayed).padStart(3).padEnd(5)} ║ ${ratio(player.successfulGrandTichus, player.grandTichus).padStart(5)} ║ ${ratio(player.successfulTichus, player.tichus).padStart(5)} ║`,
     ),
     bottom,
     "```",
