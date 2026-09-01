@@ -257,7 +257,9 @@ export const AdminPanel = ({ initialData }: Props) => {
                   <div className="rounded-lg border border-white/8 p-3">
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span>
-                        <span className="block font-medium">Tichu calls</span>
+                        <span className="block font-medium">
+                          Tichu calls by player
+                        </span>
                         <span className="text-xs text-muted-foreground">
                           {draft.callStats
                             ? "Record attempts and successful calls per player."
@@ -396,14 +398,14 @@ const CallStatsFields = ({
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Field
-                label="Grand Tichus"
+                label="Grand Tichu called"
                 type="number"
                 min={0}
                 value={stat.grandTichus}
                 onChange={(value) => onChange(index, "grandTichus", value)}
               />
               <Field
-                label="GT successful"
+                label="Grand Tichu successful"
                 type="number"
                 min={0}
                 value={stat.successfulGrandTichus}
@@ -412,14 +414,14 @@ const CallStatsFields = ({
                 }
               />
               <Field
-                label="Tichus"
+                label="Tichu called"
                 type="number"
                 min={0}
                 value={stat.tichus}
                 onChange={(value) => onChange(index, "tichus", value)}
               />
               <Field
-                label="T successful"
+                label="Tichu successful"
                 type="number"
                 min={0}
                 value={stat.successfulTichus}

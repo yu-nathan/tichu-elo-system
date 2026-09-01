@@ -155,8 +155,8 @@ export const Dashboard = ({
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto px-0">
-              <div className="grid min-w-[42rem] grid-cols-[4rem_1fr_6rem_3rem_5rem_5rem] px-6 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            <CardContent className="px-0">
+              <div className="hidden grid-cols-[3.5rem_1fr_5.5rem_2.5rem_4rem_4rem] px-5 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:grid">
                 <span>Rank</span>
                 <span>Player</span>
                 <span className="text-right">Rating</span>
@@ -165,34 +165,50 @@ export const Dashboard = ({
                 <span className="text-right">Tichu</span>
               </div>
               {active.map((player, index) => (
-                <div
-                  key={player.id}
-                  className="grid min-w-[42rem] grid-cols-[4rem_1fr_6rem_3rem_5rem_5rem] items-center border-t border-white/6 px-6 py-3.5"
-                >
-                  <span
-                    className={
-                      index < 3
-                        ? "font-mono text-amber-300"
-                        : "font-mono text-muted-foreground"
-                    }
-                  >
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="truncate font-medium">{player.name}</span>
-                  <span className="text-right font-mono text-emerald-200">
-                    {player.rating.toFixed(1)}
-                  </span>
-                  <span className="text-right font-mono text-muted-foreground">
-                    {player.gamesPlayed}
-                  </span>
-                  <SuccessRatio
-                    successes={player.successfulGrandTichus}
-                    attempts={player.grandTichus}
-                  />
-                  <SuccessRatio
-                    successes={player.successfulTichus}
-                    attempts={player.tichus}
-                  />
+                <div key={player.id} className="border-t border-white/6">
+                  <div className="hidden grid-cols-[3.5rem_1fr_5.5rem_2.5rem_4rem_4rem] items-center px-5 py-3.5 sm:grid">
+                    <Rank index={index} />
+                    <span className="truncate font-medium">{player.name}</span>
+                    <span className="text-right font-mono text-emerald-200">
+                      {player.rating.toFixed(1)}
+                    </span>
+                    <span className="text-right font-mono text-muted-foreground">
+                      {player.gamesPlayed}
+                    </span>
+                    <SuccessRatio
+                      successes={player.successfulGrandTichus}
+                      attempts={player.grandTichus}
+                    />
+                    <SuccessRatio
+                      successes={player.successfulTichus}
+                      attempts={player.tichus}
+                    />
+                  </div>
+                  <div className="px-4 py-3.5 sm:hidden">
+                    <div className="flex items-center gap-3">
+                      <Rank index={index} />
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {player.name}
+                      </span>
+                      <span className="font-mono text-emerald-200">
+                        {player.rating.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 pl-8 text-[11px] text-muted-foreground">
+                      <span>Games {player.gamesPlayed}</span>
+                      <span>
+                        GT{" "}
+                        {formatRatio(
+                          player.successfulGrandTichus,
+                          player.grandTichus,
+                        )}
+                      </span>
+                      <span>
+                        Tichu{" "}
+                        {formatRatio(player.successfulTichus, player.tichus)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -414,7 +430,20 @@ const SuccessRatio = ({
   attempts: number;
 }) => (
   <span className="text-right font-mono text-xs text-muted-foreground">
-    {attempts ? `${successes}/${attempts}` : "N/A"}
+    {formatRatio(successes, attempts)}
+  </span>
+);
+
+const formatRatio = (successes: number, attempts: number) =>
+  attempts ? `${successes}/${attempts}` : "N/A";
+
+const Rank = ({ index }: { index: number }) => (
+  <span
+    className={
+      index < 3 ? "font-mono text-amber-300" : "font-mono text-muted-foreground"
+    }
+  >
+    {String(index + 1).padStart(2, "0")}
   </span>
 );
 
@@ -425,17 +454,30 @@ const GameCallSummary = ({ game }: { game: AppData["games"][number] }) => {
     [game.teamBPlayer1Id, game.teamBPlayer1Name],
     [game.teamBPlayer2Id, game.teamBPlayer2Name],
   ]);
+  const callers = game.callStats.filter(
+    ({ grandTichus, tichus }) => grandTichus > 0 || tichus > 0,
+  );
   return (
     <div className="col-span-4 mt-1 border-t border-white/6 pt-2 text-[11px] text-muted-foreground">
-      {game.callStats.length ? (
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {game.callStats.map((stat) => (
-            <span key={stat.playerId}>
-              {players.get(stat.playerId)} · GT {stat.successfulGrandTichus}/
-              {stat.grandTichus} · T {stat.successfulTichus}/{stat.tichus}
-            </span>
+      {callers.length ? (
+        <div className="space-y-1">
+          {callers.map((stat) => (
+            <p key={stat.playerId}>
+              <span className="text-foreground">
+                Called by {players.get(stat.playerId)}:
+              </span>{" "}
+              {stat.grandTichus
+                ? `Grand Tichu ${stat.successfulGrandTichus}/${stat.grandTichus} successful`
+                : ""}
+              {stat.grandTichus && stat.tichus ? " · " : ""}
+              {stat.tichus
+                ? `Tichu ${stat.successfulTichus}/${stat.tichus} successful`
+                : ""}
+            </p>
           ))}
         </div>
+      ) : game.callStats.length ? (
+        <span>No Tichu calls this game</span>
       ) : (
         <span>Calls: N/A</span>
       )}
