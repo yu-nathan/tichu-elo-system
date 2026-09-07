@@ -73,7 +73,7 @@ export const Dashboard = ({
 
   const randomizeTeams = () => {
     const pool = active.filter((player) => selected.has(player.id));
-    if (pool.length !== 4) return;
+    if (pool.length < 4) return;
     for (let index = pool.length - 1; index > 0; index -= 1) {
       const random = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
       const swapIndex = Math.floor(random * (index + 1));
@@ -89,7 +89,7 @@ export const Dashboard = ({
       ratingA,
       ratingB,
       gap: Math.abs(ratingA - ratingB),
-      benched: [],
+      benched: pool.slice(4),
     });
   };
 
@@ -221,14 +221,6 @@ export const Dashboard = ({
                   <Badge className="bg-emerald-300 text-emerald-950">
                     Matchmaker
                   </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={selected.size !== 4}
-                    onClick={randomizeTeams}
-                  >
-                    <Shuffle /> Randomize teams
-                  </Button>
                 </div>
                 <CardTitle className="mt-3 text-xl">
                   {displayedMatch
@@ -276,6 +268,24 @@ export const Dashboard = ({
                       </DropdownMenuGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!randomMatch}
+                    onClick={() => setRandomMatch(null)}
+                  >
+                    <Sparkles /> Find fair teams
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!match}
+                    onClick={randomizeTeams}
+                  >
+                    <Shuffle /> Randomize teams
+                  </Button>
                 </div>
                 {displayedMatch ? (
                   <div className="space-y-2">
