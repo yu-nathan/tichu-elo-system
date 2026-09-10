@@ -444,8 +444,8 @@ type FieldProps = {
 };
 
 const Field = ({ label, type, value, min, onChange }: FieldProps) => (
-  <label className="block text-sm">
-    <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+  <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+    <span className="flex-1 text-xs font-medium text-muted-foreground">
       {label}
     </span>
     <Input
@@ -466,8 +466,8 @@ type PlayerSelectProps = {
 };
 
 const PlayerSelect = ({ label, value, data, onChange }: PlayerSelectProps) => (
-  <label className="block text-sm">
-    <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+  <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+    <span className="flex-1 text-xs font-medium text-muted-foreground">
       {label}
     </span>
     <select
