@@ -5,9 +5,11 @@ import { ArchiveRestore, ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AdminsCard } from "@/components/admins-card";
+import type { AdminEntry } from "@/lib/admin-access";
 import type { AppData, Game, Player } from "@/lib/store";
 
-type Props = { initialData: AppData };
+type Props = { initialData: AppData; initialAdmins: AdminEntry[] | null };
 type CallCounts = {
   grandTichus: number;
   successfulGrandTichus: number;
@@ -47,7 +49,7 @@ const newGameDraft = (playerIds: number[]): GameDraft => ({
   callStats: null,
 });
 
-export const AdminPanel = ({ initialData }: Props) => {
+export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
   const [data, setData] = useState(initialData);
   const activeIds = useMemo(
     () =>
@@ -365,7 +367,12 @@ export const AdminPanel = ({ initialData }: Props) => {
             </Card>
           </section>
 
-          <PlayersCard data={data} busy={busy} mutate={mutate} />
+          <section className="space-y-6">
+            <PlayersCard data={data} busy={busy} mutate={mutate} />
+            {initialAdmins ? (
+              <AdminsCard initialAdmins={initialAdmins} />
+            ) : null}
+          </section>
         </div>
       </div>
     </main>

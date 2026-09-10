@@ -7,6 +7,12 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+export const admins = sqliteTable("admins", {
+  email: text("email").primaryKey(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
 export const players = sqliteTable(
   "players",
   {

@@ -1,6 +1,7 @@
 import { AdminPanel } from "@/components/admin-panel";
 import { getChatGPTUser, chatGPTSignInPath } from "@/app/chatgpt-auth";
-import { ADMIN_EMAIL } from "@/lib/admin";
+import { env } from "cloudflare:workers";
+import { hasAdminAccess, isOwner, listAdmins } from "@/lib/admin-access";
 import { getAppData } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ const AdminPage = async () => {
     );
   }
 
-  if (user.email?.trim().toLowerCase() !== ADMIN_EMAIL) {
+  if (!(await hasAdminAccess(user.email, env.DB))) {
     return (
       <main className="grid min-h-screen place-items-center px-4">
         <div className="max-w-md rounded-2xl border border-red-400/20 bg-card p-8">
@@ -46,7 +47,12 @@ const AdminPage = async () => {
     );
   }
 
-  return <AdminPanel initialData={await getAppData()} />;
+  return (
+    <AdminPanel
+      initialData={await getAppData()}
+      initialAdmins={isOwner(user.email) ? await listAdmins(env.DB) : null}
+    />
+  );
 };
 
 export default AdminPage;

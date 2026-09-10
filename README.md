@@ -55,3 +55,19 @@ If both final scores are below 1,000, the result is treated as a game to 500 and
 uses half the normal K-factor (16 by default). Negative scores are supported and
 still only determine which team won. The starting rating and K-factor can be
 changed with `--initial` and `--k-factor`.
+
+## Web admin access
+
+The owner (`nyu1997@gmail.com`) can add admins in the management panel's
+**Admins** section. Enter the email they use to sign in with ChatGPT. Added
+admins can manage games and players; only the owner can add more admins. This
+grants access without sending an invitation email. The owner always retains
+access, and additional grants are stored in D1.
+
+Sites applies the new `0002_blue_apocalypse.sql` migration during deployment.
+For an existing local development database, apply it once from `web` after
+running `npm run build`:
+
+```sh
+npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_blue_apocalypse.sql
+```
