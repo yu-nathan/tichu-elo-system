@@ -6,27 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AdminsCard } from "@/components/admins-card";
+import { useGameDraft } from "@/hooks/use-game-draft";
 import type { AdminEntry } from "@/lib/admin-access";
+import {
+  gameDraftToInput,
+  type CallCounts,
+  type GameDraft,
+} from "@/lib/game-draft";
 import type { AppData, Game, Player } from "@/lib/store";
 
 type Props = { initialData: AppData; initialAdmins: AdminEntry[] | null };
-type CallCounts = {
-  grandTichus: number;
-  successfulGrandTichus: number;
-  tichus: number;
-  successfulTichus: number;
-};
-type GameDraft = {
-  id?: number;
-  teamAPlayer1Id: number;
-  teamAPlayer2Id: number;
-  teamBPlayer1Id: number;
-  teamBPlayer2Id: number;
-  scoreA: number;
-  scoreB: number;
-  playedAt: string;
-  callStats: CallCounts[] | null;
-};
 
 const emptyCallCounts = (): CallCounts => ({
   grandTichus: 0,
@@ -58,9 +47,23 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
         .map((player) => player.id),
     [data.players],
   );
-  const [draft, setDraft] = useState<GameDraft>(() => newGameDraft(activeIds));
+  const [emptyDraft, setEmptyDraft] = useState<GameDraft>(() =>
+    newGameDraft(activeIds),
+  );
+  const [savedDraft, updateDraft] = useGameDraft();
+  const draft = savedDraft ?? emptyDraft;
+  const [draftStorageFailed, setDraftStorageFailed] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const setDraft = (next: GameDraft) => {
+    setDraftStorageFailed(!updateDraft(next));
+  };
+
+  const resetDraft = () => {
+    setEmptyDraft(newGameDraft(activeIds));
+    setDraftStorageFailed(!updateDraft(null));
+  };
 
   const refresh = async () => {
     const response = await fetch("/api/state", { cache: "no-store" });
@@ -98,26 +101,21 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
 
   const submitGame = async (event: { preventDefault: () => void }) => {
     event.preventDefault();
-    const playerIds = [
-      draft.teamAPlayer1Id,
-      draft.teamAPlayer2Id,
-      draft.teamBPlayer1Id,
-      draft.teamBPlayer2Id,
-    ];
-    const body = {
-      ...draft,
-      playedAt: new Date(draft.playedAt).toISOString(),
-      callStats: draft.callStats?.map((stat, index) => ({
-        playerId: playerIds[index],
-        ...stat,
-      })),
-    };
+    let body;
+    try {
+      body = gameDraftToInput(draft);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Complete the game details.",
+      );
+      return;
+    }
     const saved = await mutate(
       draft.id ? `/api/games/${draft.id}` : "/api/games",
       draft.id ? "PATCH" : "POST",
       body,
     );
-    if (saved) setDraft(newGameDraft(activeIds));
+    if (saved) resetDraft();
   };
 
   const editGame = (game: Game) => {
@@ -196,6 +194,12 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
               </CardHeader>
               <CardContent>
                 <form className="space-y-4" onSubmit={submitGame}>
+                  {draftStorageFailed ? (
+                    <p role="alert" className="text-sm text-muted-foreground">
+                      Your browser could not update the saved draft. Keep this
+                      page open until you save the game.
+                    </p>
+                  ) : null}
                   <div className="grid grid-cols-2 gap-3">
                     <PlayerSelect
                       label="Team A player 1"
@@ -236,7 +240,7 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
                       type="number"
                       value={draft.scoreA}
                       onChange={(value) =>
-                        setDraft({ ...draft, scoreA: Number(value) })
+                        setDraft({ ...draft, scoreA: value })
                       }
                     />
                     <Field
@@ -244,7 +248,7 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
                       type="number"
                       value={draft.scoreB}
                       onChange={(value) =>
-                        setDraft({ ...draft, scoreB: Number(value) })
+                        setDraft({ ...draft, scoreB: value })
                       }
                     />
                   </div>
@@ -291,7 +295,7 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
                           const callStats = draft.callStats!.map(
                             (stat, statIndex) =>
                               statIndex === index
-                                ? { ...stat, [key]: Number(value) }
+                                ? { ...stat, [key]: value }
                                 : stat,
                           );
                           setDraft({ ...draft, callStats });
@@ -307,7 +311,7 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
                       <Button
                         type="button"
                         variant="ghost"
-                        onClick={() => setDraft(newGameDraft(activeIds))}
+                        onClick={resetDraft}
                       >
                         Cancel
                       </Button>
@@ -457,8 +461,18 @@ const Field = ({ label, type, value, min, onChange }: FieldProps) => (
     </span>
     <Input
       required
-      type={type}
-      min={min}
+      type={type === "number" ? "text" : type}
+      inputMode={type === "number" ? "numeric" : undefined}
+      pattern={
+        type === "number" ? (min === 0 ? "[0-9]+" : "-?[0-9]+") : undefined
+      }
+      title={
+        type === "number"
+          ? min === 0
+            ? "Enter a nonnegative whole number."
+            : "Enter a whole number; negative scores are allowed."
+          : undefined
+      }
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />
