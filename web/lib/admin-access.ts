@@ -1,3 +1,4 @@
+import { InputError } from "./input.ts";
 export const OWNER_EMAIL = "nyu1997@gmail.com";
 
 export type AdminEntry = {
@@ -38,17 +39,20 @@ export const addAdmin = async (
   addedBy: string,
   db: Pick<D1Database, "prepare">,
 ) => {
-  if (!isOwner(addedBy)) throw new Error("Owner access required.");
+  if (!isOwner(addedBy)) throw new InputError("Owner access required.");
   const email = typeof input === "string" ? normalizeEmail(input) : "";
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error("Enter a valid email address.");
+    throw new InputError("Enter a valid email address.");
   }
-  if (isOwner(email)) throw new Error("This account is already the owner.");
+  if (isOwner(email))
+    throw new InputError("This account is already the owner.");
   const result = await db
     .prepare(
       "INSERT INTO admins (email, created_by, created_at) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING",
     )
     .bind(email, normalizeEmail(addedBy), new Date().toISOString())
     .run();
-  if (!result.meta.changes) throw new Error("This email is already an admin.");
+  if (!result.meta.changes)
+    throw new InputError("This email is already an admin.");
+  return { email, role: "admin" as const };
 };

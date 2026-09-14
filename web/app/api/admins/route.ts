@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-errors";
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { addAdmin, isOwner, listAdmins } from "@/lib/admin-access";
@@ -27,15 +28,20 @@ export const POST = async (request: Request) => {
       ? input.email
       : undefined;
   try {
-    await addAdmin(email, user.email, env.DB);
+    const existingAdmins = await listAdmins(env.DB);
+    const added = await addAdmin(email, user.email, env.DB);
     return Response.json(
-      { admins: await listAdmins(env.DB) },
+      {
+        admins: [
+          existingAdmins[0],
+          ...[...existingAdmins.slice(1), added].sort((a, b) =>
+            a.email.localeCompare(b.email),
+          ),
+        ],
+      },
       { status: 201, headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Could not add admin" },
-      { status: 400 },
-    );
+    return apiErrorResponse(error);
   }
 };

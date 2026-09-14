@@ -57,7 +57,7 @@ def parse_game(line: str, line_number: int) -> Game:
         raise ValueError(f"line {line_number}: a player cannot partner with themselves")
     if set(team_a) & set(team_b):
         raise ValueError(f"line {line_number}: a player cannot be on both teams")
-    if score_a == score_b:
+    if int(score_a) == int(score_b):
         raise ValueError(f"line {line_number}: tied games are not supported")
     return Game(team_a, int(score_a), team_b, int(score_b))
 

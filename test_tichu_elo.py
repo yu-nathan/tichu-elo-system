@@ -17,6 +17,12 @@ class TichuEloTests(unittest.TestCase):
     def test_parses_negative_score(self):
         self.assertEqual(parse_game("NY - 1105 SC - -205", 1), Game("NY", 1105, "SC", -205))
 
+    def test_rejects_numeric_ties_with_different_spellings(self):
+        for line in ["CY - 0500 NS - 500", "CY - -0 NS - 0"]:
+            with self.subTest(line=line):
+                with self.assertRaisesRegex(ValueError, "tied games"):
+                    parse_game(line, 1)
+
     def test_updates_in_input_order(self):
         games = [Game("CY", 1000, "NS", 0), Game("CY", 200, "RS", 1000)]
         forward, _ = calculate_ratings(games)

@@ -13,7 +13,8 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test:browser": "node --test tests/browser.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

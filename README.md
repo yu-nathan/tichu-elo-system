@@ -64,10 +64,47 @@ admins can manage games and players; only the owner can add more admins. This
 grants access without sending an invitation email. The owner always retains
 access, and additional grants are stored in D1.
 
-Sites applies the new `0002_blue_apocalypse.sql` migration during deployment.
-For an existing local development database, apply it once from `web` after
-running `npm run build`:
+## Web development and validation
+
+The web application lives in `web/`. Install its locked dependencies with
+`npm ci`, then run `npm run build`. On a fresh local database, apply all migrations
+once before running `npm run dev`:
 
 ```sh
-npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_blue_apocalypse.sql
+for migration in drizzle/*.sql; do
+  npx wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file "$migration"
+done
 ```
+
+Run this initialization only against a fresh local database. Existing local
+state already has its tables and imported games; apply only missing migrations
+there. Sites tracks and applies production migrations during deployment.
+
+Production schema and the original data import belong to the existing Drizzle
+migrations. Application reads never create tables or reinsert deleted games.
+
+Run web validation from `web/`:
+
+```sh
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
+```
+
+Run the CLI regression suite from the repository root with
+`python3 -m unittest`. Web repository tests run the actual migration and query SQL
+against an in-memory SQLite database, including transaction rollback failures.
+
+The UI is composed from `components/admin` and `components/dashboard`. Browser
+requests live in `lib/api-client.ts`; hooks manage mutation, clipboard, and draft
+state. Shared contracts live in `lib/models.ts`, input validation in
+`lib/input.ts`, and D1 queries in the injectable `lib/repository.ts` with
+`lib/store.ts` providing the runtime binding.
+
+With a local development server running and Playwright plus Chrome available,
+run `npm run test:browser` from `web/`. Set `TICHU_TEST_URL` if the server uses a
+port other than 3000. An external Playwright installation can be selected via
+`PLAYWRIGHT_TEST_MODULE` (the absolute path to its `test.mjs`). These tests mock
+mutation requests and cover draft recovery, failed refreshes, clipboard errors,
+hydration, and mobile/desktop layouts without changing saved game data.
