@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -403,10 +403,7 @@ export const Dashboard = ({
                           dateTime={game.playedAt}
                           className="col-span-4 text-xs text-muted-foreground"
                         >
-                          {new Date(game.playedAt).toLocaleString([], {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          })}
+                          <LocalizedDateTime value={game.playedAt} />
                         </time>
                         <GameCallSummary game={game} />
                       </div>
@@ -502,6 +499,21 @@ const GameCallSummary = ({ game }: { game: AppData["games"][number] }) => {
       )}
     </div>
   );
+};
+
+const LocalizedDateTime = ({ value }: { value: string }) => {
+  const [label, setLabel] = useState("");
+
+  useEffect(() => {
+    setLabel(
+      new Date(value).toLocaleString([], {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    );
+  }, [value]);
+
+  return label;
 };
 
 const Team = ({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArchiveRestore, ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,6 +60,14 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
   const [draftStorageFailed, setDraftStorageFailed] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (savedDraft) return;
+    setEmptyDraft((current) => ({
+      ...current,
+      playedAt: toLocalDateTime(new Date().toISOString()),
+    }));
+  }, [savedDraft]);
 
   const setDraft = (next: GameDraft) => {
     setDraftStorageFailed(!updateDraft(next));
