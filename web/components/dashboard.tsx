@@ -399,6 +399,15 @@ export const Dashboard = ({
                             +{differential}
                           </p>
                         </div>
+                        <time
+                          dateTime={game.playedAt}
+                          className="col-span-4 text-xs text-muted-foreground"
+                        >
+                          {new Date(game.playedAt).toLocaleString([], {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </time>
                         <GameCallSummary game={game} />
                       </div>
                     );

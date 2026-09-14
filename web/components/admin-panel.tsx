@@ -24,8 +24,13 @@ const emptyCallCounts = (): CallCounts => ({
   successfulTichus: 0,
 });
 
-const toLocalDateTime = (value: string) =>
-  new Date(value).toISOString().slice(0, 16);
+const toLocalDateTime = (value: string) => {
+  const date = new Date(value);
+  const localTime = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000,
+  );
+  return localTime.toISOString().slice(0, 16);
+};
 
 const newGameDraft = (playerIds: number[]): GameDraft => ({
   teamAPlayer1Id: playerIds[0] ?? 0,
