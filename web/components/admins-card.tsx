@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { addAdmin } from "@/lib/api-client";
 import type { AdminEntry } from "@/lib/admin-access";
 
 export const AdminsCard = ({
@@ -25,19 +26,7 @@ export const AdminsCard = ({
     setError("");
     setStatus("");
     try {
-      const response = await fetch("/api/admins", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const result = (await response.json()) as {
-        admins?: AdminEntry[];
-        error?: string;
-      };
-      if (!response.ok || !result.admins) {
-        throw new Error(result.error ?? "Could not add admin. Try again.");
-      }
-      setAdmins(result.admins);
+      setAdmins(await addAdmin(email));
       setEmail("");
       setStatus(
         "Admin added. They can now sign in to manage games and players.",

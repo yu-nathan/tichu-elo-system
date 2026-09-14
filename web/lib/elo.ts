@@ -159,3 +159,28 @@ export const createFairMatch = (entries: RatingEntry[]): FairMatch | null => {
   }
   return best;
 };
+
+export const createRandomMatch = (
+  entries: RatingEntry[],
+  random: () => number = () =>
+    crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
+): FairMatch | null => {
+  const pool = entries.filter((entry) => !entry.archivedAt);
+  if (pool.length < 4) return null;
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
+  }
+  const teamA: FairMatch["teamA"] = [pool[0], pool[1]];
+  const teamB: FairMatch["teamB"] = [pool[2], pool[3]];
+  const ratingA = (teamA[0].rating + teamA[1].rating) / 2;
+  const ratingB = (teamB[0].rating + teamB[1].rating) / 2;
+  return {
+    teamA,
+    teamB,
+    ratingA,
+    ratingB,
+    gap: Math.abs(ratingA - ratingB),
+    benched: pool.slice(4),
+  };
+};

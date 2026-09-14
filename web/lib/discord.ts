@@ -1,9 +1,8 @@
-import type { AppData } from "@/lib/store";
+import { formatRatio } from "./format.ts";
+import type { AppData } from "./models.ts";
 
 export const discordLeaderboard = (data: AppData): string => {
   const active = data.leaderboard.filter((player) => !player.archivedAt);
-  const ratio = (successes: number, attempts: number) =>
-    attempts ? `${successes}/${attempts}` : "N/A";
   const nameWidth = Math.max(12, ...active.map((player) => player.name.length));
   const top = `╔${"═".repeat(6)}╦${"═".repeat(nameWidth + 2)}╦${"═".repeat(10)}╦${"═".repeat(7)}╦${"═".repeat(7)}╦${"═".repeat(7)}╗`;
   const middle = `╠${"═".repeat(6)}╬${"═".repeat(nameWidth + 2)}╬${"═".repeat(10)}╬${"═".repeat(7)}╬${"═".repeat(7)}╬${"═".repeat(7)}╣`;
@@ -22,7 +21,7 @@ export const discordLeaderboard = (data: AppData): string => {
           .padStart(2)
           .padEnd(
             4,
-          )} ║ ${player.name.padEnd(nameWidth)} ║ ${player.rating.toFixed(1).padStart(8)} ║ ${String(player.gamesPlayed).padStart(3).padEnd(5)} ║ ${ratio(player.successfulGrandTichus, player.grandTichus).padStart(5)} ║ ${ratio(player.successfulTichus, player.tichus).padStart(5)} ║`,
+          )} ║ ${player.name.padEnd(nameWidth)} ║ ${player.rating.toFixed(1).padStart(8)} ║ ${String(player.gamesPlayed).padStart(3).padEnd(5)} ║ ${formatRatio(player.successfulGrandTichus, player.grandTichus).padStart(5)} ║ ${formatRatio(player.successfulTichus, player.tichus).padStart(5)} ║`,
     ),
     bottom,
     "```",

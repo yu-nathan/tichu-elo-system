@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
-import test, { type TestContext } from "node:test";
+import test from "node:test";
+import { createDatabase } from "./helpers/database.ts";
 import {
   addAdmin,
   hasAdminAccess,
@@ -9,36 +8,6 @@ import {
   listAdmins,
   OWNER_EMAIL,
 } from "../lib/admin-access.ts";
-
-const createDatabase = (context: TestContext) => {
-  const sqlite = new DatabaseSync(":memory:");
-  context.after(() => sqlite.close());
-  const directory = new URL("../drizzle/", import.meta.url);
-  for (const file of readdirSync(directory)
-    .filter((file) => file.endsWith(".sql"))
-    .sort()) {
-    sqlite.exec(readFileSync(new URL(file, directory), "utf8"));
-  }
-  const db = {
-    prepare: (sql: string) => {
-      const statement = sqlite.prepare(sql);
-      let parameters: string[] = [];
-      const query = {
-        bind: (...values: string[]) => {
-          parameters = values;
-          return query;
-        },
-        first: async () => statement.get(...parameters) ?? null,
-        all: async () => ({ results: statement.all(...parameters) }),
-        run: async () => ({
-          meta: { changes: Number(statement.run(...parameters).changes) },
-        }),
-      };
-      return query;
-    },
-  } as unknown as Pick<D1Database, "prepare">;
-  return { db, sqlite };
-};
 
 test("the existing owner retains access without a database entry", async (context) => {
   const { db } = createDatabase(context);

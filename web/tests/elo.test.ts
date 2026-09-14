@@ -124,3 +124,24 @@ test("aggregates per-player Tichu and Grand Tichu success ratios", () => {
   assert.equal(player.tichus, 3);
   assert.equal(player.successfulTichus, 2);
 });
+
+test("random matches preserve the selected pool without mutating it", async () => {
+  const { createRandomMatch } = await import("../lib/elo.ts");
+  const entries = calculateRatings(players, []);
+  entries[5].archivedAt = "2026-09-14";
+  const before = structuredClone(entries);
+  const match = createRandomMatch(entries, () => 0)!;
+  assert.deepEqual(entries, before);
+  assert.equal(
+    new Set([...match.teamA, ...match.teamB].map(({ id }) => id)).size,
+    4,
+  );
+  assert.equal(match.benched.length, 1);
+  assert.deepEqual(
+    [...match.teamA, ...match.teamB, ...match.benched]
+      .map(({ id }) => id)
+      .sort((a, b) => a - b),
+    [1, 2, 3, 4, 5],
+  );
+  assert.equal(createRandomMatch(entries.slice(0, 3)), null);
+});

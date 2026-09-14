@@ -175,3 +175,40 @@ test("storage errors do not prevent editing or saving the game", () => {
   assert.equal(saveGameDraft(draft, storage), false);
   assert.equal(clearGameDraft(storage), false);
 });
+
+test("editing a stored game reorders call stats by team slot and preserves local time", async () => {
+  const { gameToDraft } = await import("../lib/game-draft.ts");
+  // A plain game fixture keeps this conversion independent of the database.
+  const game = {
+    id: 12,
+    teamAPlayer1Id: 4,
+    teamAPlayer2Id: 2,
+    teamBPlayer1Id: 6,
+    teamBPlayer2Id: 1,
+    scoreA: 1000,
+    scoreB: -200,
+    playedAt: "2026-09-14T20:30:00.000Z",
+    createdBy: "owner@example.com",
+    teamAPlayer1Name: "A",
+    teamAPlayer2Name: "B",
+    teamBPlayer1Name: "C",
+    teamBPlayer2Name: "D",
+    teamACode: "AB",
+    teamBCode: "CD",
+    callStats: [1, 6, 2, 4].map((playerId) => ({
+      playerId,
+      grandTichus: playerId,
+      successfulGrandTichus: 0,
+      tichus: 0,
+      successfulTichus: 0,
+    })),
+  };
+  const edited = gameToDraft(game);
+  assert.deepEqual(
+    edited.callStats?.map(({ grandTichus }) => grandTichus),
+    [4, 2, 6, 1],
+  );
+  assert.equal(edited.id, 12);
+  assert.equal(gameDraftToInput(edited).playedAt, game.playedAt);
+  assert.equal(gameToDraft({ ...game, callStats: [] }).callStats, null);
+});

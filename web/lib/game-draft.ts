@@ -1,3 +1,6 @@
+import type { Game } from "./models.ts";
+import { toLocalDateTime } from "./date-time.ts";
+
 export type DraftNumber = number | string;
 
 export type CallCounts = {
@@ -130,4 +133,56 @@ export const clearGameDraft = (storage?: DraftStorage): boolean => {
   } catch {
     return false;
   }
+};
+
+export const emptyCallCounts = (): CallCounts => ({
+  grandTichus: 0,
+  successfulGrandTichus: 0,
+  tichus: 0,
+  successfulTichus: 0,
+});
+
+export const newGameDraft = (playerIds: number[]): GameDraft => ({
+  teamAPlayer1Id: playerIds[0] ?? 0,
+  teamAPlayer2Id: playerIds[1] ?? 0,
+  teamBPlayer1Id: playerIds[2] ?? 0,
+  teamBPlayer2Id: playerIds[3] ?? 0,
+  scoreA: 0,
+  scoreB: 0,
+  playedAt: toLocalDateTime(new Date().toISOString()),
+  callStats: null,
+});
+
+export const gameToDraft = (game: Game): GameDraft => {
+  const playerIds = [
+    game.teamAPlayer1Id,
+    game.teamAPlayer2Id,
+    game.teamBPlayer1Id,
+    game.teamBPlayer2Id,
+  ];
+  return {
+    id: game.id,
+    teamAPlayer1Id: game.teamAPlayer1Id,
+    teamAPlayer2Id: game.teamAPlayer2Id,
+    teamBPlayer1Id: game.teamBPlayer1Id,
+    teamBPlayer2Id: game.teamBPlayer2Id,
+    scoreA: game.scoreA,
+    scoreB: game.scoreB,
+    playedAt: toLocalDateTime(game.playedAt),
+    callStats: game.callStats.length
+      ? playerIds.map((playerId) => {
+          const stat = game.callStats.find(
+            (entry) => entry.playerId === playerId,
+          );
+          return stat
+            ? {
+                grandTichus: stat.grandTichus,
+                successfulGrandTichus: stat.successfulGrandTichus,
+                tichus: stat.tichus,
+                successfulTichus: stat.successfulTichus,
+              }
+            : emptyCallCounts();
+        })
+      : null,
+  };
 };
