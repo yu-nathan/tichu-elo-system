@@ -561,7 +561,12 @@ const PlayersCard = ({
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          <Button disabled={busy} size="icon" aria-label="Add player">
+          <Button
+            type="submit"
+            disabled={busy}
+            size="icon"
+            aria-label="Add player"
+          >
             <Plus />
           </Button>
         </form>
