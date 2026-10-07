@@ -158,7 +158,7 @@ test("all tied partners are alphabetical, including archived partners", () => {
   assert.equal(profile.draggingMeDown[0].losses, 1);
 });
 
-test("partner rankings use counts rather than win or loss percentages", () => {
+test("partner rankings use win and loss rates while best friends use game counts", () => {
   const games = [
     game(1),
     game(2),
@@ -174,15 +174,60 @@ test("partner rankings use counts rather than win or loss percentages", () => {
   );
   assert.deepEqual(
     profile.carryingMe.map(({ id }) => id),
+    [3],
+  );
+  assert.deepEqual(
+    profile.draggingMeDown.map(({ id }) => id),
+    [4],
+  );
+  assert.equal(profile.bestFriends[0].games, 4);
+  assert.equal(profile.carryingMe[0].wins, 1);
+  assert.equal(profile.carryingMe[0].games, 1);
+  assert.equal(profile.draggingMeDown[0].losses, 1);
+  assert.equal(profile.draggingMeDown[0].games, 1);
+});
+
+test("equal rates tie across different game counts and retain each partner's denominator", () => {
+  const games = [
+    game(1),
+    game(2, [1, 2], [3, 4], false),
+    game(3, [1, 3], [2, 4]),
+    game(4, [1, 3], [2, 4]),
+    game(5, [1, 3], [2, 4], false),
+    game(6, [1, 3], [2, 4], false),
+  ];
+  const profile = calculatePlayerProfile(players, games, 1)!;
+  for (const key of ["carryingMe", "draggingMeDown"] as const) {
+    assert.deepEqual(
+      profile[key].map(({ name, games }) => ({ name, games })),
+      [
+        { name: "Bea", games: 4 },
+        { name: "Zoe", games: 2 },
+      ],
+    );
+  }
+  assert.deepEqual(
+    profile.bestFriends.map(({ id }) => id),
+    [3],
+  );
+});
+
+test("rates are ranked before percentage rounding", () => {
+  const games = Array.from({ length: 2001 }, (_, index) =>
+    index < 1000
+      ? game(index + 1, [1, 2], [3, 4], index < 500)
+      : game(index + 1, [1, 3], [2, 4], index < 1500),
+  );
+  const profile = calculatePlayerProfile(players, games, 1)!;
+  assert.equal(formatPercentage(500, 1000), formatPercentage(500, 1001));
+  assert.deepEqual(
+    profile.carryingMe.map(({ id }) => id),
     [2],
   );
   assert.deepEqual(
     profile.draggingMeDown.map(({ id }) => id),
-    [2],
+    [3],
   );
-  assert.equal(profile.bestFriends[0].games, 4);
-  assert.equal(profile.carryingMe[0].wins, 2);
-  assert.equal(profile.draggingMeDown[0].losses, 2);
 });
 
 test("history includes opponent activity, timestamp/id ordering, and half K", () => {

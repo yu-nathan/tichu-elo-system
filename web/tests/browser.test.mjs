@@ -313,6 +313,24 @@ test("player profiles show accurate stats, restore focus, and preserve the match
           dialog.getByRole("heading", { name: title, exact: true }),
         ).toHaveCount(1);
       }
+      for (const [title, outcome] of [
+        ["Carrying me", "won"],
+        ["Dragging me down", "lost"],
+      ]) {
+        const card = dialog
+          .getByRole("heading", { name: title, exact: true })
+          .locator("..");
+        await expect(card).toContainText(
+          outcome === "won"
+            ? "Highest win rate together"
+            : "Highest loss rate together",
+        );
+        for (const partner of await card.getByRole("listitem").all()) {
+          await expect(partner.locator("p")).toHaveText(
+            new RegExp(`^\\d+\\.\\d% · \\d+/\\d+ games ${outcome}$`),
+          );
+        }
+      }
       if (games.length) {
         const chart = dialog.getByRole("application");
         await chart.scrollIntoViewIfNeeded();

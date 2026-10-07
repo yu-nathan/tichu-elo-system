@@ -31,7 +31,6 @@ const PartnerHighlight = ({
   description,
   partners,
   field,
-  singular,
   empty,
   icon,
 }: {
@@ -39,7 +38,6 @@ const PartnerHighlight = ({
   description: string;
   partners: PartnerSummary[];
   field: "games" | "wins" | "losses";
-  singular: string;
   empty: string;
   icon: ReactNode;
 }) => (
@@ -49,18 +47,26 @@ const PartnerHighlight = ({
     <p className="mt-1 text-xs text-muted-foreground">{description}</p>
     {partners.length ? (
       <>
-        <ul className="mt-3 space-y-1 text-sm font-medium">
+        <ul className="mt-3 space-y-2 text-sm font-medium">
           {partners.map((partner) => (
             <li className="break-words" key={partner.id}>
               {partner.name}
+              {field !== "games" ? (
+                <p className="mt-1 text-xs font-normal text-muted-foreground">
+                  {formatPercentage(partner[field], partner.games)} ·{" "}
+                  {formatRatio(partner[field], partner.games)}{" "}
+                  {field === "wins" ? "games won" : "games lost"}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {partners[0][field]} {singular}
-          {partners[0][field] === 1 ? "" : field === "losses" ? "es" : "s"}{" "}
-          together{partners.length > 1 ? " each" : ""}
-        </p>
+        {field === "games" ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {partners[0].games} {partners[0].games === 1 ? "game" : "games"}{" "}
+            together{partners.length > 1 ? " each" : ""}
+          </p>
+        ) : null}
       </>
     ) : (
       <p className="mt-3 text-sm text-muted-foreground">{empty}</p>
@@ -128,25 +134,22 @@ export const PlayerProfileContent = ({
             description="Most games together"
             partners={profile.bestFriends}
             field="games"
-            singular="game"
             empty="No partnerships yet"
             icon={<HeartHandshake className="size-5" />}
           />
           <PartnerHighlight
             title="Carrying me"
-            description="Most wins together"
+            description="Highest win rate together"
             partners={profile.carryingMe}
             field="wins"
-            singular="win"
             empty="No wins together yet"
             icon={<TrendingUp className="size-5" />}
           />
           <PartnerHighlight
             title="Dragging me down"
-            description="Most losses together"
+            description="Highest loss rate together"
             partners={profile.draggingMeDown}
             field="losses"
-            singular="loss"
             empty="No losses together yet"
             icon={<TrendingDown className="size-5" />}
           />

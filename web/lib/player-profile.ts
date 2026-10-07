@@ -28,12 +28,24 @@ const leadingPartners = (
   partners: PartnerSummary[],
   field: "games" | "wins" | "losses",
 ) => {
-  const most = partners.reduce(
-    (max, partner) => Math.max(max, partner[field]),
-    0,
+  const eligible = partners.filter(
+    (partner) => partner.games > 0 && partner[field] > 0,
   );
-  return partners
-    .filter((partner) => most > 0 && partner[field] === most)
+  if (!eligible.length) return [];
+  const denominator = (partner: PartnerSummary) =>
+    field === "games" ? 1 : partner.games;
+  // Compare exact fractions so rounded percentages never create false ties.
+  const best = eligible.reduce((leader, partner) =>
+    partner[field] * denominator(leader) > leader[field] * denominator(partner)
+      ? partner
+      : leader,
+  );
+  return eligible
+    .filter(
+      (partner) =>
+        partner[field] * denominator(best) ===
+        best[field] * denominator(partner),
+    )
     .sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
 };
 
