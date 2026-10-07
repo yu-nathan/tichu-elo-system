@@ -42,11 +42,21 @@ export type FairMatch = {
   benched: RatingEntry[];
 };
 
-export const calculateRatings = (
+export type RatingHistoryPoint = {
+  gameNumber: number;
+  gameId: number | null;
+  playedAt: string | null;
+  rating: number;
+  delta: number;
+  result: "Win" | "Loss" | null;
+};
+
+const replayRatings = (
   players: EloPlayer[],
   games: EloGame[],
-  initial = 1000,
-  kFactor = 32,
+  initial: number,
+  kFactor: number,
+  onRatingChange?: (playerId: number, point: RatingHistoryPoint) => void,
 ): RatingEntry[] => {
   const state = new Map(
     players.map((player) => [
@@ -93,6 +103,18 @@ export const calculateRatings = (
         gamesPlayed: current.gamesPlayed + 1,
       });
     }
+    for (const id of [...teamA, ...teamB]) {
+      const current = state.get(id)!;
+      const isTeamA = teamA.includes(id);
+      onRatingChange?.(id, {
+        gameNumber: current.gamesPlayed,
+        gameId: game.id,
+        playedAt: game.playedAt,
+        rating: current.rating,
+        delta: isTeamA ? delta : -delta,
+        result: (isTeamA ? actualA === 1 : actualA === 0) ? "Win" : "Loss",
+      });
+    }
     for (const stat of game.callStats ?? []) {
       const current = state.get(stat.playerId);
       if (!current) continue;
@@ -108,6 +130,42 @@ export const calculateRatings = (
   }
 
   return players.map((player) => ({ ...player, ...state.get(player.id)! }));
+};
+
+export const calculateRatings = (
+  players: EloPlayer[],
+  games: EloGame[],
+  initial = 1000,
+  kFactor = 32,
+): RatingEntry[] => replayRatings(players, games, initial, kFactor);
+
+export const calculateRatingHistory = (
+  players: EloPlayer[],
+  games: EloGame[],
+  playerId: number,
+  initial = 1000,
+  kFactor = 32,
+) => {
+  const history: RatingHistoryPoint[] = [
+    {
+      gameNumber: 0,
+      gameId: null,
+      playedAt: null,
+      rating: initial,
+      delta: 0,
+      result: null,
+    },
+  ];
+  const ratings = replayRatings(
+    players,
+    games,
+    initial,
+    kFactor,
+    (id, point) => {
+      if (id === playerId) history.push(point);
+    },
+  );
+  return { player: ratings.find(({ id }) => id === playerId), history };
 };
 
 export const createFairMatch = (entries: RatingEntry[]): FairMatch | null => {

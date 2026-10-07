@@ -82,6 +82,8 @@ export const Dashboard = ({
         <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
           <LeaderboardCard
             active={active}
+            players={data.players}
+            games={data.games}
             copied={copied === "leaderboard"}
             onCopy={() => copy("leaderboard", discordLeaderboard(data))}
           />

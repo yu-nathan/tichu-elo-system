@@ -41,6 +41,15 @@ const openPage = async (context, path, options = {}) => {
   return { page, errors };
 };
 
+const selectMatchmakingPlayers = async (page, count = 4) => {
+  await page.getByRole("button", { name: /0 of \d+ players/ }).click();
+  const choices = page.getByRole("menuitemcheckbox");
+  for (let index = 0; index < count; index += 1) {
+    await choices.nth(index).click();
+  }
+  await page.keyboard.press("Escape");
+};
+
 test("saved games clear drafts even when refresh fails; edits stay locked until recovery", async (context) => {
   const { page, errors } = await openPage(context, "/admin");
   const data = await (await page.request.get("/api/state")).json();
@@ -175,6 +184,7 @@ test("dashboard and admin render at mobile and desktop widths without hydration 
         viewport: { width, height: 900 },
       });
       if (path === "/") {
+        await selectMatchmakingPlayers(page);
         await page.getByRole("button", { name: "Randomize teams" }).click();
         await expect(
           page.getByRole("button", { name: "Find fair teams" }),
@@ -191,5 +201,162 @@ test("dashboard and admin render at mobile and desktop widths without hydration 
       );
       assert.deepEqual(errors, []);
     }
+  }
+});
+
+test("matchmaking starts empty, activates with four players, and clears random teams on selection changes", async (context) => {
+  const { page, errors } = await openPage(context, "/");
+  const randomize = page.getByRole("button", { name: "Randomize teams" });
+  const fair = page.getByRole("button", { name: "Find fair teams" });
+  await expect(page.getByText("Choose at least 4 players")).toBeVisible();
+  await expect(randomize).toBeDisabled();
+  await expect(fair).toBeDisabled();
+  await page.getByRole("button", { name: /0 of \d+ players/ }).click();
+  const choices = page.getByRole("menuitemcheckbox");
+  const names = [];
+  for (let index = 0; index < (await choices.count()); index += 1) {
+    await expect(choices.nth(index)).toHaveAttribute("aria-checked", "false");
+  }
+  for (let index = 0; index < 3; index += 1) {
+    names.push((await choices.nth(index).innerText()).split("\n")[0]);
+    await choices.nth(index).click();
+  }
+  await page.keyboard.press("Escape");
+  await expect(randomize).toBeDisabled();
+  await page.getByRole("button", { name: /3 of \d+ players/ }).click();
+  names.push((await choices.nth(3).innerText()).split("\n")[0]);
+  await choices.nth(3).click();
+  await page.keyboard.press("Escape");
+  await expect(randomize).toBeEnabled();
+  await expect(fair).toBeDisabled();
+  await randomize.click();
+  await expect(fair).toBeEnabled();
+  const teamCards = page.getByText(/^Team (one|two)$/).locator("..");
+  const teamText = (await teamCards.allTextContents()).join(" ");
+  for (const name of names) assert.ok(teamText.includes(name));
+  await page
+    .getByRole("button", { name: /4 of \d+ players|All players/ })
+    .click();
+  await choices.first().click();
+  await page.keyboard.press("Escape");
+  await expect(randomize).toBeDisabled();
+  await expect(fair).toBeDisabled();
+  await expect(page.getByText("Team one", { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /0 of \d+ players/ }),
+  ).toBeVisible();
+  assert.deepEqual(errors, []);
+});
+
+test("player profiles show accurate stats, restore focus, and preserve the matchmaking pool", async (context) => {
+  for (const width of [390, 1280]) {
+    const { page, errors } = await openPage(context, "/", {
+      viewport: { width, height: 900 },
+      hasTouch: width === 390,
+    });
+    const data = await (await page.request.get("/api/state")).json();
+    await selectMatchmakingPlayers(page);
+    const poolText = await page
+      .getByRole("button", { name: /4 of \d+ players|All players/ })
+      .innerText();
+    const triggers = page.getByRole("button", { name: /^View .+'s profile$/ });
+    for (let index = 0; index < 2; index += 1) {
+      const player = data.leaderboard.filter(({ archivedAt }) => !archivedAt)[
+        index
+      ];
+      const trigger = triggers.nth(index);
+      if (index === 0) {
+        await trigger.focus();
+        await page.keyboard.press("Enter");
+      } else {
+        await trigger.click();
+      }
+      const dialog = page.getByRole("dialog", {
+        name: player.name,
+        exact: true,
+      });
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.getByText(`${player.rating.toFixed(1)} Elo`, { exact: true }),
+      ).toBeVisible();
+      const games = data.games.filter((game) =>
+        [
+          game.teamAPlayer1Id,
+          game.teamAPlayer2Id,
+          game.teamBPlayer1Id,
+          game.teamBPlayer2Id,
+        ].includes(player.id),
+      );
+      const wins = games.filter((game) =>
+        [game.teamAPlayer1Id, game.teamAPlayer2Id].includes(player.id)
+          ? game.scoreA > game.scoreB
+          : game.scoreB > game.scoreA,
+      ).length;
+      const winCard = dialog
+        .getByRole("heading", { name: "Win rate", exact: true })
+        .locator("..");
+      await expect(winCard).toContainText(
+        games.length ? `${((wins / games.length) * 100).toFixed(1)}%` : "N/A",
+      );
+      await expect(winCard).toContainText(
+        `${wins} wins · ${games.length - wins} losses`,
+      );
+      for (const title of [
+        "Tichu success",
+        "Grand Tichu success",
+        "Best friend",
+        "Carrying me",
+        "Dragging me down",
+      ]) {
+        await expect(
+          dialog.getByRole("heading", { name: title, exact: true }),
+        ).toHaveCount(1);
+      }
+      if (games.length) {
+        const chart = dialog.getByRole("application");
+        await chart.scrollIntoViewIfNeeded();
+        await chart.focus();
+        await page.keyboard.press("ArrowRight");
+        await expect(dialog.locator(".recharts-tooltip-wrapper")).toBeVisible();
+        if (width === 390) {
+          const lastPoint = dialog.locator(".recharts-line-dot").last();
+          await lastPoint.tap();
+          await expect(
+            dialog.locator(".recharts-tooltip-wrapper"),
+          ).toContainText(`Elo ${player.rating.toFixed(1)}`);
+        }
+      }
+      const close = dialog.getByRole("button", { name: "Close profile" });
+      await close.focus();
+      await page.keyboard.press("Shift+Tab");
+      await expect
+        .poll(
+          () =>
+            dialog.evaluate((element) =>
+              element.contains(document.activeElement),
+            ),
+          { message: "Focus must remain trapped in the dialog" },
+        )
+        .toBe(true);
+      assert.ok(
+        await dialog.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth,
+        ),
+      );
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      );
+      if (index === 0) await page.keyboard.press("Escape");
+      else await close.click();
+      await expect(dialog).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+      await expect(
+        page.getByRole("button", { name: /4 of \d+ players|All players/ }),
+      ).toHaveText(poolText);
+    }
+    assert.deepEqual(errors, []);
   }
 });

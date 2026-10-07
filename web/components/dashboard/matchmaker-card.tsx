@@ -20,9 +20,7 @@ import {
 } from "@/lib/elo";
 
 export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
-  const [selected, setSelected] = useState(
-    () => new Set(active.map((player) => player.id)),
-  );
+  const [selected, setSelected] = useState(() => new Set<number>());
   const [randomMatch, setRandomMatch] = useState<FairMatch | null>(null);
   const match = useMemo(
     () => createFairMatch(active.filter((player) => selected.has(player.id))),
@@ -70,7 +68,7 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
               }
             >
               <span>
-                {selected.size === active.length
+                {active.length > 0 && selected.size === active.length
                   ? "All players"
                   : `${selected.size} of ${active.length} players`}
               </span>
