@@ -16,11 +16,11 @@ export const DialogContent = ({
   ...props
 }: DialogPrimitive.Popup.Props) => (
   <DialogPrimitive.Portal>
-    <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
+    <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none" />
     <DialogPrimitive.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
       <DialogPrimitive.Popup
         className={cn(
-          "relative max-h-full w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-background p-5 text-foreground shadow-2xl outline-none sm:p-7",
+          "relative max-h-full w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-background p-5 text-foreground shadow-2xl outline-none transition-[opacity,scale] duration-200 ease-out data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 motion-reduce:transition-none sm:p-7",
           className,
         )}
         {...props}
