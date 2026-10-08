@@ -594,6 +594,7 @@ test("dashboard stays in the viewport with mobile tabs and independently scrolli
     { width: 390, height: 600 },
     { width: 844, height: 390 },
     { width: 1280, height: 720 },
+    { width: 1440, height: 1080 },
   ]) {
     const { page, errors } = await openPage(context, "/", { viewport });
     const isMobile = viewport.width < 1024;
