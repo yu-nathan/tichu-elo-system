@@ -376,3 +376,160 @@ test("history and partner stats recompute correctly after edits or deletion", ()
     [2],
   );
 });
+
+test("partner Tichu ranking uses pooled regular-call rates only while together", () => {
+  const games = [
+    game(1),
+    game(2, [2, 1]),
+    game(3, [1, 3], [2, 4]),
+    game(4, [2, 3], [4, 5]),
+  ];
+  const calls = (
+    playerId: number,
+    tichus: number,
+    successfulTichus: number,
+    grand = 0,
+  ) => ({
+    playerId,
+    tichus,
+    successfulTichus,
+    grandTichus: 20,
+    successfulGrandTichus: grand,
+  });
+  games[0].callStats = [calls(2, 1, 1, 20), calls(1, 10, 10)];
+  games[1].callStats = [calls(2, 9, 4)];
+  games[2].callStats = [calls(3, 3, 2), calls(2, 100, 100)];
+  games[3].callStats = [calls(2, 100, 100)];
+  games.push(game(5), game(6, [1, 3], [2, 4]), game(7, [1, 3], [2, 4]));
+  const profile = calculatePlayerProfile(players, games, 1)!;
+  assert.deepEqual(
+    profile.imHisBitch.map(({ id }) => id),
+    [3],
+  );
+  assert.equal(profile.imHisBitch[0].tichus, 3);
+  assert.equal(profile.imHisBitch[0].successfulTichus, 2);
+  assert.equal(profile.bestFriends.find(({ id }) => id === 2)!.tichus, 10);
+  assert.equal(
+    profile.bestFriends.find(({ id }) => id === 2)!.successfulTichus,
+    5,
+  );
+});
+
+test("partner Tichu ranking includes archived partners and alphabetical exact-rate ties", () => {
+  const games = [game(1), game(2, [1, 3], [2, 4])];
+  for (const [index, playerId, tichus, successfulTichus] of [
+    [0, 2, 6, 4],
+    [1, 3, 3, 2],
+  ]) {
+    games[index].callStats = [
+      {
+        playerId,
+        tichus,
+        successfulTichus,
+        grandTichus: 0,
+        successfulGrandTichus: 0,
+      },
+    ];
+  }
+  assert.deepEqual(
+    calculatePlayerProfile(
+      players,
+      [
+        ...games,
+        game(3),
+        game(4),
+        game(5, [1, 3], [2, 4]),
+        game(6, [1, 3], [2, 4]),
+      ],
+      1,
+    )!.imHisBitch.map(({ name }) => name),
+    ["Bea", "Zoe"],
+  );
+});
+
+test("partner Tichu calls identify the teammate in all four team positions", () => {
+  const played = game(1);
+  played.callStats = players.slice(0, 4).map(({ id }) => ({
+    playerId: id,
+    tichus: id,
+    successfulTichus: 1,
+    grandTichus: 0,
+    successfulGrandTichus: 0,
+  }));
+  for (const [id, teammate] of [
+    [1, 2],
+    [2, 1],
+    [3, 4],
+    [4, 3],
+  ]) {
+    const [partner] = calculatePlayerProfile(
+      players,
+      [played, game(2), game(3)],
+      id,
+    )!.imHisBitch;
+    assert.equal(partner.id, teammate);
+    assert.equal(partner.tichus, teammate);
+  }
+});
+
+test("partner Tichu ranking excludes missing, grand-only, zero-success and small samples", () => {
+  const games = [game(1), game(2), game(3)];
+  games[0].callStats = [
+    {
+      playerId: 2,
+      tichus: 0,
+      successfulTichus: 0,
+      grandTichus: 1,
+      successfulGrandTichus: 1,
+    },
+  ];
+  assert.deepEqual(calculatePlayerProfile(players, [], 1)!.imHisBitch, []);
+  assert.deepEqual(calculatePlayerProfile(players, games, 1)!.imHisBitch, []);
+  games[0].callStats[0].tichus = 2;
+  assert.deepEqual(calculatePlayerProfile(players, games, 1)!.imHisBitch, []);
+  games[0].callStats[0].successfulTichus = 1;
+  for (const count of [1, 2])
+    assert.deepEqual(
+      calculatePlayerProfile(players, games.slice(0, count), 1)!.imHisBitch,
+      [],
+    );
+  const [partner] = calculatePlayerProfile(players, games, 1)!.imHisBitch;
+  assert.equal(
+    formatPercentage(partner.successfulTichus, partner.tichus),
+    "50.0%",
+  );
+  assert.equal(partner.tichus, 2);
+});
+
+test("partner Tichu ranking weights games rather than call counts and displays actual rates", () => {
+  const games = partnershipGames([
+    { partnerId: 2, games: 3, wins: 3 },
+    { partnerId: 3, games: 10, wins: 10 },
+  ]);
+  games[0].callStats = [
+    {
+      playerId: 2,
+      tichus: 100,
+      successfulTichus: 100,
+      grandTichus: 0,
+      successfulGrandTichus: 0,
+    },
+  ];
+  games[3].callStats = [
+    {
+      playerId: 3,
+      tichus: 10,
+      successfulTichus: 8,
+      grandTichus: 0,
+      successfulGrandTichus: 0,
+    },
+  ];
+  const [partner] = calculatePlayerProfile(players, games, 1)!.imHisBitch;
+  assert.equal(partner.id, 3);
+  assert.equal(
+    formatPercentage(partner.successfulTichus, partner.tichus),
+    "80.0%",
+  );
+  games[3].callStats[0].successfulTichus = 1;
+  assert.equal(calculatePlayerProfile(players, games, 1)!.imHisBitch[0].id, 2);
+});

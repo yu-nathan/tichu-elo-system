@@ -308,6 +308,7 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         "Best friend",
         "Carrying me",
         "Dragging me down",
+        "I'm his bitch",
       ]) {
         await expect(
           dialog.getByRole("heading", { name: title, exact: true }),
@@ -339,8 +340,64 @@ test("player profiles show accurate stats, restore focus, and preserve the match
           );
         }
       }
+      const tichuCard = dialog
+        .getByRole("heading", { name: "I'm his bitch", exact: true })
+        .locator("..");
+      const partnerCalls = new Map();
+      for (const game of games) {
+        const teamA = [game.teamAPlayer1Id, game.teamAPlayer2Id];
+        const team = teamA.includes(player.id)
+          ? teamA
+          : [game.teamBPlayer1Id, game.teamBPlayer2Id];
+        const id = team.find((id) => id !== player.id);
+        const calls = game.callStats?.find(({ playerId }) => playerId === id);
+        const total = partnerCalls.get(id) ?? {
+          attempts: 0,
+          successes: 0,
+          games: 0,
+        };
+        total.games += 1;
+        total.attempts += calls?.tichus ?? 0;
+        total.successes += calls?.successfulTichus ?? 0;
+        partnerCalls.set(id, total);
+      }
+      const eligible = [...partnerCalls].filter(
+        ([, calls]) =>
+          calls.games >= 3 && calls.attempts > 0 && calls.successes > 0,
+      );
+      const score = ({ successes, attempts, games }) => {
+        const rate = successes / attempts;
+        const z = 1.96;
+        return (
+          (rate +
+            z ** 2 / (2 * games) -
+            z *
+              Math.sqrt(
+                (rate * (1 - rate)) / games + z ** 2 / (4 * games ** 2),
+              )) /
+          (1 + z ** 2 / games)
+        );
+      };
+      const bestScore = Math.max(...eligible.map(([, calls]) => score(calls)));
+      const leaders = eligible.filter(
+        ([, calls]) => score(calls) === bestScore,
+      );
+      await expect(tichuCard.getByRole("listitem")).toHaveCount(leaders.length);
+      for (const [id, calls] of leaders) {
+        const partner = data.leaderboard.find((partner) => partner.id === id);
+        await expect(tichuCard).toContainText(partner.name);
+        await expect(tichuCard).toContainText(
+          `${((calls.successes / calls.attempts) * 100).toFixed(1)}% · ${calls.successes}/${calls.attempts} successful calls`,
+        );
+      }
+      if (!leaders.length)
+        await expect(tichuCard).toContainText(
+          [...partnerCalls.values()].some(({ games }) => games >= 3)
+            ? "No successful partner Tichu calls recorded with eligible partners"
+            : "Play at least 3 games with a partner",
+        );
       await expect(dialog).toContainText(
-        "Rankings balance win/loss rate with games played",
+        "Rankings balance success rates with games played",
       );
       if (games.length) {
         const chart = dialog.getByRole("application");

@@ -1,4 +1,4 @@
-import { HeartHandshake, TrendingDown, TrendingUp } from "lucide-react";
+import { HeartHandshake, Target, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,9 +23,9 @@ const Stat = ({
   value: string;
   detail: string;
 }) => (
-  <div className="rounded-xl border border-border bg-card p-4">
+  <div className="rounded-xl border border-border bg-card p-3">
     <h3 className="text-xs text-muted-foreground">{label}</h3>
-    <p className="mt-2 font-mono text-2xl font-medium">{value}</p>
+    <p className="mt-1 font-mono text-2xl font-medium">{value}</p>
     <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
   </div>
 );
@@ -41,25 +41,40 @@ const PartnerHighlight = ({
   title: string;
   description: string;
   partners: PartnerSummary[];
-  field: "games" | "wins" | "losses";
+  field: "games" | "wins" | "losses" | "successfulTichus";
   empty: string;
   icon: ReactNode;
 }) => (
-  <section className="min-w-0 rounded-xl border border-border bg-card p-4">
-    <div className="mb-3 text-primary">{icon}</div>
+  <section className="min-w-0 rounded-xl border border-border bg-card p-3">
+    <div className="mb-2 text-primary">{icon}</div>
     <h3 className="font-medium">{title}</h3>
     <p className="mt-1 text-xs text-muted-foreground">{description}</p>
     {partners.length ? (
       <>
-        <ul className="mt-3 space-y-2 text-sm font-medium">
+        <ul className="mt-2 space-y-2 text-sm font-medium">
           {partners.map((partner) => (
             <li className="break-words" key={partner.id}>
               {partner.name}
               {field !== "games" ? (
                 <p className="mt-1 text-xs font-normal text-muted-foreground">
-                  {formatPercentage(partner[field], partner.games)} ·{" "}
-                  {formatRatio(partner[field], partner.games)}{" "}
-                  {field === "wins" ? "games won" : "games lost"}
+                  {formatPercentage(
+                    partner[field],
+                    field === "successfulTichus"
+                      ? partner.tichus
+                      : partner.games,
+                  )}{" "}
+                  ·{" "}
+                  {formatRatio(
+                    partner[field],
+                    field === "successfulTichus"
+                      ? partner.tichus
+                      : partner.games,
+                  )}{" "}
+                  {field === "successfulTichus"
+                    ? "successful calls"
+                    : field === "wins"
+                      ? "games won"
+                      : "games lost"}
                 </p>
               ) : null}
             </li>
@@ -90,10 +105,10 @@ export const PlayerProfileContent = ({
         <Badge variant="outline" className="border-primary/30 text-primary">
           Player profile
         </Badge>
-        <DialogTitle className="mt-3 break-words text-2xl font-semibold">
+        <DialogTitle className="mt-2 break-words text-2xl font-semibold">
           {player.name}
         </DialogTitle>
-        <DialogDescription className="mt-2 text-sm text-muted-foreground">
+        <DialogDescription className="mt-1 text-sm text-muted-foreground">
           <span className="font-mono font-medium text-primary">
             {player.rating.toFixed(1)} Elo
           </span>
@@ -102,7 +117,7 @@ export const PlayerProfileContent = ({
           played
         </DialogDescription>
       </header>
-      <div className="mt-6 space-y-5">
+      <div className="mt-4 space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Stat
             label="Win rate"
@@ -132,7 +147,7 @@ export const PlayerProfileContent = ({
           />
         </div>
         <EloHistoryChart history={profile.history} />
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <PartnerHighlight
             title="Best friend"
             description="Most games together"
@@ -165,12 +180,24 @@ export const PlayerProfileContent = ({
             }
             icon={<TrendingDown className="size-5" />}
           />
+          <PartnerHighlight
+            title="I'm his bitch"
+            description="Partner Tichu success weighted by games together"
+            partners={profile.imHisBitch}
+            field="successfulTichus"
+            empty={
+              profile.hasEligiblePartners
+                ? "No successful partner Tichu calls recorded with eligible partners"
+                : `Play at least ${MIN_PARTNER_GAMES} games with a partner`
+            }
+            icon={<Target className="size-5" />}
+          />
         </div>
         <p className="text-xs text-muted-foreground">
-          Carrying me and Dragging me down require at least {MIN_PARTNER_GAMES}{" "}
-          games together. Rankings balance win/loss rate with games played,
-          giving less weight to small samples. Percentages show your actual
-          results together.
+          Carrying me, Dragging me down, and I&apos;m his bitch require at least{" "}
+          {MIN_PARTNER_GAMES} games together. Rankings balance success rates
+          with games played, giving less weight to small samples. Percentages
+          show your actual results together.
         </p>
       </div>
     </DialogContent>

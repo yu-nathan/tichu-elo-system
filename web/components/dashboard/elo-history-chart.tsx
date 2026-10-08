@@ -51,7 +51,7 @@ export const EloHistoryChart = ({
   return (
     <section
       aria-label="Elo history"
-      className="rounded-xl border border-border bg-card p-4 sm:p-5"
+      className="rounded-xl border border-border bg-card p-3"
     >
       <h3 className="font-medium">Elo history</h3>
       <p id={summaryId} className="mt-1 text-xs text-muted-foreground">
@@ -60,7 +60,7 @@ export const EloHistoryChart = ({
           : "No games played yet. Starting Elo: 1,000.0."}
       </p>
       {last.gameNumber ? (
-        <div className="mt-5 h-64 min-w-0 w-full sm:h-72">
+        <div className="mt-3 h-48 max-h-[22dvh] min-w-0 w-full sm:h-56">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <LineChart
               accessibilityLayer

@@ -12,6 +12,8 @@ export type PartnerSummary = {
   games: number;
   wins: number;
   losses: number;
+  tichus: number;
+  successfulTichus: number;
 };
 
 export type PlayerProfile = {
@@ -23,6 +25,7 @@ export type PlayerProfile = {
   carryingMe: PartnerSummary[];
   draggingMeDown: PartnerSummary[];
   hasEligiblePartners: boolean;
+  imHisBitch: PartnerSummary[];
 };
 
 export const MIN_PARTNER_GAMES = 3;
@@ -32,8 +35,7 @@ const PARTNER_SCORE_Z = 1.96;
 // heuristic rather than a displayed win/loss percentage. Larger samples get
 // less of a penalty, without letting game count replace the outcome rate.
 // https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm
-const partnerOutcomeScore = (outcomes: number, games: number) => {
-  const rate = outcomes / games;
+const partnerRateScore = (rate: number, games: number) => {
   const zSquared = PARTNER_SCORE_Z ** 2;
   return (
     (rate +
@@ -59,13 +61,35 @@ const leadingPartners = (
       score:
         field === "games"
           ? partner.games
-          : partnerOutcomeScore(partner[field], partner.games),
+          : partnerRateScore(partner[field] / partner.games, partner.games),
     }));
   if (!eligible.length) return [];
   const bestScore = eligible.reduce(
     (best, { score }) => Math.max(best, score),
     0,
   );
+  return eligible
+    .filter(({ score }) => score === bestScore)
+    .map(({ partner }) => partner)
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
+};
+
+const leadingTichuPartners = (partners: PartnerSummary[]) => {
+  const eligible = partners
+    .filter(
+      ({ games, tichus, successfulTichus }) =>
+        games >= MIN_PARTNER_GAMES && tichus > 0 && successfulTichus > 0,
+    )
+    .map((partner) => ({
+      partner,
+      // Calls determine the rate; games together determine its sample weight,
+      // matching the other outcome highlights without treating calls as games.
+      score: partnerRateScore(
+        partner.successfulTichus / partner.tichus,
+        partner.games,
+      ),
+    }));
+  const bestScore = Math.max(...eligible.map(({ score }) => score));
   return eligible
     .filter(({ score }) => score === bestScore)
     .map(({ partner }) => partner)
@@ -104,7 +128,14 @@ export const calculatePlayerProfile = (
       games: 0,
       wins: 0,
       losses: 0,
+      tichus: 0,
+      successfulTichus: 0,
     };
+    const calls = game.callStats?.find(
+      ({ playerId }) => playerId === partnerId,
+    );
+    partner.tichus += calls?.tichus ?? 0;
+    partner.successfulTichus += calls?.successfulTichus ?? 0;
     partner.games += 1;
     if (won) partner.wins += 1;
     else partner.losses += 1;
@@ -117,6 +148,7 @@ export const calculatePlayerProfile = (
     wins,
     losses,
     history,
+    imHisBitch: leadingTichuPartners(summaries),
     bestFriends: leadingPartners(summaries, "games"),
     carryingMe: leadingPartners(summaries, "wins"),
     draggingMeDown: leadingPartners(summaries, "losses"),
