@@ -1,4 +1,11 @@
-import { HeartHandshake, Target, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  HeartHandshake,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Swords,
+  Trophy,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,7 +17,8 @@ import { EloHistoryChart } from "@/components/dashboard/elo-history-chart";
 import { formatPercentage, formatRatio } from "@/lib/format";
 import {
   MIN_PARTNER_GAMES,
-  type PartnerSummary,
+  MIN_OPPONENT_GAMES,
+  type OpponentSummary,
   type PlayerProfile,
 } from "@/lib/player-profile";
 
@@ -30,18 +38,21 @@ const Stat = ({
   </div>
 );
 
-const PartnerHighlight = ({
+const formatOutcome = (person: OpponentSummary, field: "wins" | "losses") =>
+  `${formatPercentage(person[field], person.games)} · ${formatRatio(person[field], person.games)} games ${field === "wins" ? "won" : "lost"}`;
+
+const PlayerHighlight = <T extends OpponentSummary>({
   title,
   description,
   partners,
-  field,
+  detail,
   empty,
   icon,
 }: {
   title: string;
   description: string;
-  partners: PartnerSummary[];
-  field: "games" | "wins" | "losses" | "successfulTichus";
+  partners: T[];
+  detail?: (person: T) => string;
   empty: string;
   icon: ReactNode;
 }) => (
@@ -55,32 +66,15 @@ const PartnerHighlight = ({
           {partners.map((partner) => (
             <li className="break-words" key={partner.id}>
               {partner.name}
-              {field !== "games" ? (
+              {detail ? (
                 <p className="mt-1 text-xs font-normal text-muted-foreground">
-                  {formatPercentage(
-                    partner[field],
-                    field === "successfulTichus"
-                      ? partner.tichus
-                      : partner.games,
-                  )}{" "}
-                  ·{" "}
-                  {formatRatio(
-                    partner[field],
-                    field === "successfulTichus"
-                      ? partner.tichus
-                      : partner.games,
-                  )}{" "}
-                  {field === "successfulTichus"
-                    ? "successful calls"
-                    : field === "wins"
-                      ? "games won"
-                      : "games lost"}
+                  {detail(partner)}
                 </p>
               ) : null}
             </li>
           ))}
         </ul>
-        {field === "games" ? (
+        {!detail ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {partners[0].games} {partners[0].games === 1 ? "game" : "games"}{" "}
             together{partners.length > 1 ? " each" : ""}
@@ -147,20 +141,19 @@ export const PlayerProfileContent = ({
           />
         </div>
         <EloHistoryChart history={profile.history} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <PartnerHighlight
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <PlayerHighlight
             title="Best friend"
             description="Most games together"
             partners={profile.bestFriends}
-            field="games"
             empty="No partnerships yet"
             icon={<HeartHandshake className="size-5" />}
           />
-          <PartnerHighlight
+          <PlayerHighlight
             title="Carrying me"
             description="Win rate weighted by games played"
             partners={profile.carryingMe}
-            field="wins"
+            detail={(person) => formatOutcome(person, "wins")}
             empty={
               profile.hasEligiblePartners
                 ? "No wins with eligible partners yet"
@@ -168,11 +161,11 @@ export const PlayerProfileContent = ({
             }
             icon={<TrendingUp className="size-5" />}
           />
-          <PartnerHighlight
+          <PlayerHighlight
             title="Dragging me down"
             description="Loss rate weighted by games played"
             partners={profile.draggingMeDown}
-            field="losses"
+            detail={(person) => formatOutcome(person, "losses")}
             empty={
               profile.hasEligiblePartners
                 ? "No losses with eligible partners yet"
@@ -180,11 +173,13 @@ export const PlayerProfileContent = ({
             }
             icon={<TrendingDown className="size-5" />}
           />
-          <PartnerHighlight
+          <PlayerHighlight
             title="I'm his bitch"
             description="Partner Tichu success weighted by games together"
             partners={profile.imHisBitch}
-            field="successfulTichus"
+            detail={(person) =>
+              `${formatPercentage(person.successfulTichus, person.tichus)} · ${formatRatio(person.successfulTichus, person.tichus)} successful calls`
+            }
             empty={
               profile.hasEligiblePartners
                 ? "No successful partner Tichu calls recorded with eligible partners"
@@ -192,12 +187,37 @@ export const PlayerProfileContent = ({
             }
             icon={<Target className="size-5" />}
           />
+          <PlayerHighlight
+            title="Nemesis"
+            description="Loss rate against an opponent, weighted by games"
+            partners={profile.nemesis}
+            detail={(person) => formatOutcome(person, "losses")}
+            empty={
+              profile.hasEligibleOpponents
+                ? "No losses against eligible opponents yet"
+                : `Play at least ${MIN_OPPONENT_GAMES} games against an opponent`
+            }
+            icon={<Swords className="size-5" />}
+          />
+          <PlayerHighlight
+            title="Curbstomped"
+            description="Win rate against an opponent, weighted by games"
+            partners={profile.curbstomped}
+            detail={(person) => formatOutcome(person, "wins")}
+            empty={
+              profile.hasEligibleOpponents
+                ? "No wins against eligible opponents yet"
+                : `Play at least ${MIN_OPPONENT_GAMES} games against an opponent`
+            }
+            icon={<Trophy className="size-5" />}
+          />
         </div>
         <p className="text-xs text-muted-foreground">
           Carrying me, Dragging me down, and I&apos;m his bitch require at least{" "}
-          {MIN_PARTNER_GAMES} games together. Rankings balance success rates
-          with games played, giving less weight to small samples. Percentages
-          show your actual results together.
+          {MIN_PARTNER_GAMES} games together. Nemesis and Curbstomped require at
+          least {MIN_OPPONENT_GAMES} games against the same opponent. Rankings
+          balance success rates with games played, giving less weight to small
+          samples. Percentages show your actual results.
         </p>
       </div>
     </DialogContent>

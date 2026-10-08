@@ -533,3 +533,102 @@ test("partner Tichu ranking weights games rather than call counts and displays a
   games[3].callStats[0].successfulTichus = 1;
   assert.equal(calculatePlayerProfile(players, games, 1)!.imHisBitch[0].id, 2);
 });
+
+test("opponent highlights count both opponents from all four team positions", () => {
+  const games = [game(1), game(2), game(3)];
+  for (const [id, opponents, won] of [
+    [1, [3, 4], true],
+    [2, [3, 4], true],
+    [3, [1, 2], false],
+    [4, [1, 2], false],
+  ] as const) {
+    const profile = calculatePlayerProfile(players, games, id)!;
+    const highlights = won ? profile.curbstomped : profile.nemesis;
+    assert.deepEqual(
+      highlights.map(({ id }) => id),
+      opponents,
+    );
+    assert.ok(
+      highlights.every(
+        (person) => person.games === 3 && person[won ? "wins" : "losses"] === 3,
+      ),
+    );
+    assert.deepEqual(won ? profile.nemesis : profile.curbstomped, []);
+  }
+});
+
+test("opponent history excludes partnerships and unrelated games and updates after edits/deletions", () => {
+  const games = [
+    game(1),
+    game(2),
+    game(3, [1, 2], [3, 4], false),
+    game(4, [1, 3], [5, 6]),
+    game(5, [3, 4], [5, 6]),
+  ];
+  const profile = calculatePlayerProfile(players, games, 1)!;
+  assert.deepEqual(
+    profile.nemesis.map(({ id }) => id),
+    [3, 4],
+  );
+  assert.deepEqual(
+    profile.curbstomped.map(({ id }) => id),
+    [3, 4],
+  );
+  assert.equal(profile.nemesis[0].games, 3);
+  assert.equal(profile.nemesis[0].losses, 1);
+  assert.equal(profile.curbstomped[0].wins, 2);
+  const edited = games.map((played) =>
+    played.id === 3 ? { ...played, scoreA: 1000, scoreB: 0 } : played,
+  );
+  assert.deepEqual(calculatePlayerProfile(players, edited, 1)!.nemesis, []);
+  assert.deepEqual(
+    calculatePlayerProfile(players, games.slice(1), 1)!.curbstomped,
+    [],
+  );
+});
+
+test("opponent highlights require three games, include archived ties, and exclude zero outcomes", () => {
+  for (const won of [true, false]) {
+    for (const count of [0, 1, 2, 3]) {
+      const games = Array.from({ length: count }, (_, index) =>
+        game(index + 1, [1, 4], [2, 3], won),
+      );
+      const profile = calculatePlayerProfile(players, games, 1)!;
+      assert.equal(profile.hasEligibleOpponents, count === 3);
+      assert.deepEqual(
+        profile[won ? "curbstomped" : "nemesis"].map(({ name }) => name),
+        count === 3 ? ["Bea", "Zoe"] : [],
+      );
+      assert.deepEqual(profile[won ? "nemesis" : "curbstomped"], []);
+    }
+  }
+});
+
+test("opponent rankings balance games against rate for both wins and losses", () => {
+  for (const field of ["wins", "losses"] as const) {
+    let id = 0;
+    const games = [
+      ...Array.from({ length: 3 }, () =>
+        game(++id, [1, 2], [3, 6], field === "wins"),
+      ),
+      ...Array.from({ length: 10 }, (_, index) =>
+        game(++id, [1, 2], [4, 7], field === "wins" ? index < 8 : index >= 8),
+      ),
+      ...Array.from({ length: 20 }, (_, index) =>
+        game(++id, [1, 2], [5, 8], field === "wins" ? index < 9 : index >= 9),
+      ),
+    ];
+    const leaders = calculatePlayerProfile(players, games, 1)![
+      field === "wins" ? "curbstomped" : "nemesis"
+    ];
+    assert.deepEqual(
+      leaders.map(({ id }) => id),
+      [4, 7],
+    );
+    assert.equal(
+      formatPercentage(leaders[0][field], leaders[0].games),
+      "80.0%",
+    );
+    assert.equal(formatRatio(leaders[0][field], leaders[0].games), "8/10");
+  }
+});

@@ -309,6 +309,8 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         "Carrying me",
         "Dragging me down",
         "I'm his bitch",
+        "Nemesis",
+        "Curbstomped",
       ]) {
         await expect(
           dialog.getByRole("heading", { name: title, exact: true }),
@@ -396,6 +398,59 @@ test("player profiles show accurate stats, restore focus, and preserve the match
             ? "No successful partner Tichu calls recorded with eligible partners"
             : "Play at least 3 games with a partner",
         );
+      const opponents = new Map();
+      for (const game of games) {
+        const onA = [game.teamAPlayer1Id, game.teamAPlayer2Id].includes(
+          player.id,
+        );
+        const won = onA ? game.scoreA > game.scoreB : game.scoreB > game.scoreA;
+        for (const id of onA
+          ? [game.teamBPlayer1Id, game.teamBPlayer2Id]
+          : [game.teamAPlayer1Id, game.teamAPlayer2Id]) {
+          const record = opponents.get(id) ?? { games: 0, wins: 0, losses: 0 };
+          record.games += 1;
+          record[won ? "wins" : "losses"] += 1;
+          opponents.set(id, record);
+        }
+      }
+      for (const [title, field] of [
+        ["Nemesis", "losses"],
+        ["Curbstomped", "wins"],
+      ]) {
+        const card = dialog
+          .getByRole("heading", { name: title, exact: true })
+          .locator("..");
+        const eligible = [...opponents].filter(
+          ([, record]) => record.games >= 3 && record[field] > 0,
+        );
+        const opponentScore = (record) =>
+          score({
+            successes: record[field],
+            attempts: record.games,
+            games: record.games,
+          });
+        const best = Math.max(
+          ...eligible.map(([, record]) => opponentScore(record)),
+        );
+        const leaders = eligible.filter(
+          ([, record]) => opponentScore(record) === best,
+        );
+        await expect(card.getByRole("listitem")).toHaveCount(leaders.length);
+        for (const [id, record] of leaders) {
+          await expect(card).toContainText(
+            data.leaderboard.find((person) => person.id === id).name,
+          );
+          await expect(card).toContainText(
+            `${((record[field] / record.games) * 100).toFixed(1)}% · ${record[field]}/${record.games} games ${field === "wins" ? "won" : "lost"}`,
+          );
+        }
+        if (!leaders.length)
+          await expect(card).toContainText(
+            [...opponents.values()].some(({ games }) => games >= 3)
+              ? `No ${field} against eligible opponents yet`
+              : "Play at least 3 games against an opponent",
+          );
+      }
       await expect(dialog).toContainText(
         "Rankings balance success rates with games played",
       );

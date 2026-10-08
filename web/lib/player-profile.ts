@@ -6,12 +6,15 @@ import {
   type RatingHistoryPoint,
 } from "./elo.ts";
 
-export type PartnerSummary = {
+export type OpponentSummary = {
   id: number;
   name: string;
   games: number;
   wins: number;
   losses: number;
+};
+
+export type PartnerSummary = OpponentSummary & {
   tichus: number;
   successfulTichus: number;
 };
@@ -26,9 +29,13 @@ export type PlayerProfile = {
   draggingMeDown: PartnerSummary[];
   hasEligiblePartners: boolean;
   imHisBitch: PartnerSummary[];
+  nemesis: OpponentSummary[];
+  curbstomped: OpponentSummary[];
+  hasEligibleOpponents: boolean;
 };
 
 export const MIN_PARTNER_GAMES = 3;
+export const MIN_OPPONENT_GAMES = MIN_PARTNER_GAMES;
 const PARTNER_SCORE_Z = 1.96;
 
 // Lower endpoint of the 95% Wilson interval, used as a conservative ranking
@@ -46,8 +53,8 @@ const partnerRateScore = (rate: number, games: number) => {
   );
 };
 
-const leadingPartners = (
-  partners: PartnerSummary[],
+const leadingPlayers = <T extends OpponentSummary>(
+  partners: T[],
   field: "games" | "wins" | "losses",
 ) => {
   const eligible = partners
@@ -105,6 +112,7 @@ export const calculatePlayerProfile = (
   if (!player) return null;
   const names = new Map(players.map(({ id, name }) => [id, name]));
   const partners = new Map<number, PartnerSummary>();
+  const opponents = new Map<number, OpponentSummary>();
   let wins = 0;
   let losses = 0;
 
@@ -140,18 +148,37 @@ export const calculatePlayerProfile = (
     if (won) partner.wins += 1;
     else partner.losses += 1;
     partners.set(partnerId, partner);
+    for (const opponentId of team === teamA ? teamB : teamA) {
+      const opponent = opponents.get(opponentId) ?? {
+        id: opponentId,
+        name: names.get(opponentId)!,
+        games: 0,
+        wins: 0,
+        losses: 0,
+      };
+      opponent.games += 1;
+      if (won) opponent.wins += 1;
+      else opponent.losses += 1;
+      opponents.set(opponentId, opponent);
+    }
   }
 
   const summaries = [...partners.values()];
+  const opponentSummaries = [...opponents.values()];
   return {
+    nemesis: leadingPlayers(opponentSummaries, "losses"),
+    curbstomped: leadingPlayers(opponentSummaries, "wins"),
+    hasEligibleOpponents: opponentSummaries.some(
+      ({ games }) => games >= MIN_OPPONENT_GAMES,
+    ),
     player,
     wins,
     losses,
     history,
     imHisBitch: leadingTichuPartners(summaries),
-    bestFriends: leadingPartners(summaries, "games"),
-    carryingMe: leadingPartners(summaries, "wins"),
-    draggingMeDown: leadingPartners(summaries, "losses"),
+    bestFriends: leadingPlayers(summaries, "games"),
+    carryingMe: leadingPlayers(summaries, "wins"),
+    draggingMeDown: leadingPlayers(summaries, "losses"),
     hasEligiblePartners: summaries.some(
       ({ games }) => games >= MIN_PARTNER_GAMES,
     ),
