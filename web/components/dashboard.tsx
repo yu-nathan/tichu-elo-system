@@ -112,7 +112,7 @@ export const Dashboard = ({
           </Tabs.List>
           {/* CSS controls visibility so desktop can expose every panel. Keeping
               panels mounted preserves selections when mobile tabs change. */}
-          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.2fr_.8fr] lg:grid-rows-[minmax(0,auto)_minmax(0,1fr)]">
+          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.2fr_.8fr] lg:grid-rows-[50dvh_minmax(0,1fr)]">
             <Tabs.Panel
               value="leaderboard"
               keepMounted
@@ -135,7 +135,7 @@ export const Dashboard = ({
               inert={false}
               hidden={false}
               className={cn(
-                "min-h-0 [&>div]:h-full lg:col-start-2 lg:row-start-1 lg:block lg:max-h-[50dvh]",
+                "min-h-0 [&>div]:h-full lg:col-start-2 lg:row-start-1 lg:block",
                 view !== "matchmaker" && "hidden",
               )}
             >

@@ -574,7 +574,23 @@ test("dashboard stays in the viewport with mobile tabs and independently scrolli
       ).toBeFocused();
       await page.keyboard.press("Enter");
     } else await expect(tabs).toBeHidden();
+    await selectDashboardTab(page, "Matchmaker");
+    const cardBounds = () =>
+      page.locator('[data-slot="card"]').evaluateAll((cards) =>
+        cards
+          .filter((card) => card.getBoundingClientRect().height > 0)
+          .map((card) => {
+            const { x, y, width, height } = card.getBoundingClientRect();
+            return { x, y, width, height };
+          }),
+      );
+    const emptyBounds = await cardBounds();
     await selectMatchmakingPlayers(page);
+    assert.deepEqual(await cardBounds(), emptyBounds);
+    await page.getByRole("button", { name: "Randomize teams" }).click();
+    assert.deepEqual(await cardBounds(), emptyBounds);
+    await page.getByRole("button", { name: "Find fair teams" }).click();
+    assert.deepEqual(await cardBounds(), emptyBounds);
     await page.getByRole("button", { name: "Randomize teams" }).click();
     await selectDashboardTab(page, "Recent games");
     const history = page.getByRole("region", { name: "Recent games list" });
