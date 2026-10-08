@@ -737,32 +737,77 @@ test(
   },
 );
 
-test("profiles load on demand and failed requests can be retried", async (context) => {
-  const { page, errors } = await openPage(context, "/");
-  let requests = 0;
-  await page.route("**/api/players/*/profile", async (route) => {
-    requests += 1;
-    if (requests === 1)
-      await route.fulfill({
-        status: 503,
-        json: { error: "Temporary profile failure" },
-      });
-    else await route.continue();
+for (const width of [390, 1280]) {
+  test(`profile skeleton transitions through errors and retries at ${width}px`, async (context) => {
+    const { page, errors } = await openPage(context, "/", {
+      viewport: { width, height: 800 },
+      reducedMotion: "reduce",
+    });
+    let requests = 0;
+    let releaseFirst;
+    let releaseRetry;
+    const first = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    const retry = new Promise((resolve) => {
+      releaseRetry = resolve;
+    });
+    context.after(() => {
+      releaseFirst();
+      releaseRetry();
+    });
+    await page.route("**/api/players/*/profile", async (route) => {
+      requests += 1;
+      if (requests === 1) {
+        await first;
+        await route.fulfill({
+          status: 503,
+          json: { error: "Temporary profile failure" },
+        });
+      } else {
+        await retry;
+        await route.continue();
+      }
+    });
+    assert.equal(requests, 0);
+    const trigger = page
+      .getByRole("button", { name: /^View .+'s profile$/ })
+      .first();
+    await trigger.click();
+    const dialog = page.getByRole("dialog");
+    const status = dialog.getByRole("status");
+    await expect(status).toHaveText("Loading profile…");
+    const skeleton = dialog.locator('[data-slot="skeleton"]').first();
+    await expect(skeleton).toBeVisible();
+    assert.equal(
+      await skeleton.evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Close profile" }),
+    ).toBeVisible();
+    assert.ok(
+      await dialog.evaluate(
+        (el) =>
+          el.scrollWidth <= el.clientWidth &&
+          el.getBoundingClientRect().height <= innerHeight * 0.9 + 1,
+      ),
+    );
+    releaseFirst();
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "Could not load this profile. Try again.",
+    );
+    await expect(skeleton).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Retry profile" }).click();
+    await expect(status).toHaveText("Loading profile…");
+    await expect(skeleton).toBeVisible();
+    releaseRetry();
+    await expect(dialog.getByText("Win rate", { exact: true })).toBeVisible();
+    await expect(skeleton).toHaveCount(0);
+    assert.equal(requests, 2);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    assert.deepEqual(errors, []);
   });
-  assert.equal(requests, 0);
-  const trigger = page
-    .getByRole("button", { name: /^View .+'s profile$/ })
-    .first();
-  await trigger.click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("alert")).toHaveText(
-    "Could not load this profile. Try again.",
-  );
-  await dialog.getByRole("button", { name: "Retry profile" }).click();
-  await expect(dialog.getByText("Win rate", { exact: true })).toBeVisible();
-  assert.equal(requests, 2);
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await expect(trigger).toBeFocused();
-  assert.deepEqual(errors, []);
-});
+}

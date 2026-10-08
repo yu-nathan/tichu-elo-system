@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { fetchPlayerProfile } from "@/lib/api-client";
 import type { PlayerProfile } from "@/lib/player-profile";
 import { PlayerProfileContent } from "./player-profile";
+import { PlayerProfileSkeleton } from "./player-profile-skeleton";
 import {
   DialogContent,
   DialogDescription,
@@ -32,29 +33,24 @@ export const PlayerProfileLoader = ({
     return () => controller.abort();
   }, [playerId, attempt]);
   if (profile) return <PlayerProfileContent profile={profile} />;
+  if (!error) return <PlayerProfileSkeleton name={name} />;
   return (
     <DialogContent>
       <DialogTitle className="pr-8 text-2xl font-semibold">{name}</DialogTitle>
       <DialogDescription className="mt-2 text-sm text-muted-foreground">
         Lifetime player statistics and Elo history.
       </DialogDescription>
-      {error ? (
-        <div className="mt-4 space-y-3">
-          <p role="alert">{error}</p>
-          <Button
-            onClick={() => {
-              setError(null);
-              setAttempt((value) => value + 1);
-            }}
-          >
-            Retry profile
-          </Button>
-        </div>
-      ) : (
-        <output className="mt-4 block text-sm text-muted-foreground">
-          Loading profile…
-        </output>
-      )}
+      <div className="mt-4 space-y-3">
+        <p role="alert">{error}</p>
+        <Button
+          onClick={() => {
+            setError(null);
+            setAttempt((value) => value + 1);
+          }}
+        >
+          Retry profile
+        </Button>
+      </div>
     </DialogContent>
   );
 };
