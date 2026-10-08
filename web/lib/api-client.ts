@@ -1,5 +1,6 @@
+import type { PlayerProfile } from "./player-profile.ts";
 import type { AdminEntry } from "./admin-access.ts";
-import type { AppData, PlayerInput, PlayerUpdate } from "./models.ts";
+import type { AppData, GamePage, PlayerInput, PlayerUpdate } from "./models.ts";
 import type { gameDraftToInput } from "./game-draft.ts";
 
 const request = async (
@@ -72,4 +73,37 @@ export const addAdmin = async (email: string): Promise<AdminEntry[]> => {
   if (!Array.isArray(result?.admins))
     throw new Error("Could not load the admin list. Reload the page.");
   return result!.admins!;
+};
+
+export const fetchGamePage = async (
+  cursor: string,
+  signal?: AbortSignal,
+): Promise<GamePage> => {
+  const response = await fetch(
+    `/api/games?cursor=${encodeURIComponent(cursor)}`,
+    { cache: "no-store", signal },
+  );
+  if (!response.ok) throw new Error("Could not load older games. Try again.");
+  const page = (await response.json()) as GamePage;
+  if (
+    !Array.isArray(page?.games) ||
+    !(page.nextCursor === null || typeof page.nextCursor === "string")
+  )
+    throw new Error("Could not load older games. Try again.");
+  return page;
+};
+
+export const fetchPlayerProfile = async (
+  id: number,
+  signal: AbortSignal,
+): Promise<PlayerProfile> => {
+  const response = await fetch(`/api/players/${id}/profile`, {
+    cache: "no-store",
+    signal,
+  });
+  if (!response.ok) throw new Error("Could not load this profile. Try again.");
+  const profile = (await response.json()) as PlayerProfile;
+  if (profile?.player?.id !== id || !Array.isArray(profile.history))
+    throw new Error("Could not load this profile. Try again.");
+  return profile;
 };

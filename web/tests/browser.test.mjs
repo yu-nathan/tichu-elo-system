@@ -175,7 +175,7 @@ test("clipboard failures are recoverable and a newer copy keeps its full feedbac
   await expect(
     page.getByRole("button", { name: "Copied", exact: true }),
   ).toBeVisible();
-  assert.match(await page.evaluate(() => window.copiedText), /Last 10 Games/);
+  assert.match(await page.evaluate(() => window.copiedText), /Last 10 games/);
   await page.clock.fastForward(1000);
   await expect(
     page.getByRole("button", { name: "Copied", exact: true }),
@@ -578,9 +578,8 @@ test("dashboard stays in the viewport with mobile tabs and independently scrolli
     await page.getByRole("button", { name: "Randomize teams" }).click();
     await selectDashboardTab(page, "Recent games");
     const history = page.getByRole("region", { name: "Recent games list" });
-    await history.getByRole("button", { name: /Show all/ }).click();
     await expect(
-      history.getByRole("button", { name: "Show last 3" }),
+      history.getByText("All games loaded", { exact: true }),
     ).toBeVisible();
     await history.focus();
     await page.keyboard.press("Home");
@@ -631,4 +630,139 @@ test("dashboard stays in the viewport with mobile tabs and independently scrolli
     }
     assert.deepEqual(errors, []);
   }
+});
+
+test(
+  "history pages load on scroll, recover from failure, and keep Discord limited to ten",
+  {
+    skip: !process.env.TICHU_TEST_DATABASE,
+  },
+  async (context) => {
+    // Opt in only with a disposable preview database; never modify normal local data.
+    const databasePath = process.env.TICHU_TEST_DATABASE;
+    assert.match(
+      databasePath,
+      /^\/private\/tmp\/tichu-pagination\.[^/]+\/\.wrangler\/state\/.*\.sqlite$/,
+    );
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(databasePath);
+    const marker = `pagination-browser-${Date.now()}`;
+    context.after(() => {
+      db.prepare("DELETE FROM games WHERE created_by = ?").run(marker);
+      db.close();
+    });
+    const insert = db.prepare(`INSERT INTO games
+    (team_a_player_1_id, team_a_player_2_id, score_a, team_b_player_1_id, team_b_player_2_id, score_b, played_at, created_by, created_at, updated_at)
+    VALUES (1, 2, 1000, 3, 4, 300, ?, ?, ?, ?)`);
+    for (let i = 0; i < 46; i += 1) {
+      const date = new Date(Date.UTC(2026, 8, 1, 0, i)).toISOString();
+      insert.run(date, marker, date, date);
+    }
+    const expectedIds = db
+      .prepare("SELECT id FROM games ORDER BY played_at DESC, id DESC")
+      .all()
+      .map(({ id }) => String(id));
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+    ]) {
+      const { page, errors } = await openPage(context, "/", { viewport });
+      let requests = 0;
+      await page.route("**/api/games?*", async (route) => {
+        requests += 1;
+        if (requests === 1)
+          await route.fulfill({
+            status: 503,
+            json: { error: "Temporary history failure" },
+          });
+        else await route.continue();
+      });
+      const history = page.getByRole("region", { name: "Recent games list" });
+      await selectDashboardTab(page, "Recent games");
+      await expect(history.locator("[data-game-id]")).toHaveCount(20);
+      assert.equal(requests, 0);
+      await history.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await expect(history.getByRole("alert")).toContainText(
+        "Could not load older games. Try again.",
+      );
+      await expect(history.locator("[data-game-id]")).toHaveCount(20);
+      await history
+        .getByRole("button", { name: "Retry loading games" })
+        .click();
+      await expect(history.locator("[data-game-id]")).toHaveCount(40);
+      await history.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await expect(history.locator("[data-game-id]")).toHaveCount(
+        expectedIds.length,
+      );
+      await expect(history.getByText("All games loaded")).toBeVisible();
+      assert.equal(requests, 3);
+      assert.deepEqual(
+        await history
+          .locator("[data-game-id]")
+          .evaluateAll((els) => els.map((el) => el.dataset.gameId)),
+        expectedIds,
+      );
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "clipboard", {
+          value: {
+            writeText: async (value) => {
+              window.copiedText = value;
+            },
+          },
+        });
+      });
+      await page
+        .getByRole("button", { name: "Copy for Discord", exact: true })
+        .last()
+        .click();
+      const copied = await page.evaluate(() => window.copiedText);
+      assert.match(copied, /Last 10 games/);
+      for (const id of expectedIds.slice(0, 10))
+        assert.match(copied, new RegExp(`\\b${id}\\b`));
+      assert.equal(
+        copied.split("\n").filter((line) => /^║\s+\d+\s+║/.test(line)).length,
+        10,
+      );
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollHeight <= innerHeight,
+        ),
+      );
+      assert.deepEqual(errors, []);
+    }
+  },
+);
+
+test("profiles load on demand and failed requests can be retried", async (context) => {
+  const { page, errors } = await openPage(context, "/");
+  let requests = 0;
+  await page.route("**/api/players/*/profile", async (route) => {
+    requests += 1;
+    if (requests === 1)
+      await route.fulfill({
+        status: 503,
+        json: { error: "Temporary profile failure" },
+      });
+    else await route.continue();
+  });
+  assert.equal(requests, 0);
+  const trigger = page
+    .getByRole("button", { name: /^View .+'s profile$/ })
+    .first();
+  await trigger.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "Could not load this profile. Try again.",
+  );
+  await dialog.getByRole("button", { name: "Retry profile" }).click();
+  await expect(dialog.getByText("Win rate", { exact: true })).toBeVisible();
+  assert.equal(requests, 2);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  assert.deepEqual(errors, []);
 });

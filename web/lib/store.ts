@@ -13,3 +13,10 @@ export const updateGame = (id: number, input: unknown) =>
   createRepository(env.DB).updateGame(id, input);
 export const deleteGame = (id: number) =>
   createRepository(env.DB).deleteGame(id);
+
+export const getDashboardData = () =>
+  createRepository(env.DB).getDashboardData();
+export const getGamePage = (cursor: string | null = null) =>
+  createRepository(env.DB).getGamePage(cursor);
+export const getPlayerProfile = (id: number) =>
+  createRepository(env.DB).getPlayerProfile(id);

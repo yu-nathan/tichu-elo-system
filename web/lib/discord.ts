@@ -1,7 +1,9 @@
 import { formatRatio } from "./format.ts";
 import type { AppData } from "./models.ts";
 
-export const discordLeaderboard = (data: AppData): string => {
+export const discordLeaderboard = (
+  data: Pick<AppData, "leaderboard">,
+): string => {
   const active = data.leaderboard.filter((player) => !player.archivedAt);
   const nameWidth = Math.max(12, ...active.map((player) => player.name.length));
   const top = `╔${"═".repeat(6)}╦${"═".repeat(nameWidth + 2)}╦${"═".repeat(10)}╦${"═".repeat(7)}╦${"═".repeat(7)}╦${"═".repeat(7)}╗`;
@@ -29,12 +31,16 @@ export const discordLeaderboard = (data: AppData): string => {
   return rows.join("\n");
 };
 
-export const discordHistory = (data: AppData): string => {
-  const games = data.games.slice(-10);
+export const discordHistory = (data: Pick<AppData, "games">): string => {
+  const games = [...data.games]
+    .sort(
+      (a, b) => Date.parse(a.playedAt) - Date.parse(b.playedAt) || a.id - b.id,
+    )
+    .slice(-10);
   const rows = [
     "```text",
     "╔═════════════════════════════════╗",
-    "║          Last 10 Games          ║",
+    "║          Last 10 games          ║",
     "╠═════╦════╦════════╦════╦════════╣",
     "║  #  ║ T1 ║  Score ║ T2 ║  Score ║",
     "╠═════╬════╬════════╬════╬════════╣",

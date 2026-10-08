@@ -1,11 +1,41 @@
-import { calculateRatings, createFairMatch, type GameCallStat } from "./elo.ts";
-import type { AppData, Game, Player } from "./models.ts";
+import { calculatePlayerProfile } from "./player-profile.ts";
+import {
+  decodeGameCursor,
+  encodeGameCursor,
+  GAME_PAGE_SIZE,
+} from "./game-pagination.ts";
+import {
+  calculateRatings,
+  createFairMatch,
+  type EloGame,
+  type GameCallStat,
+} from "./elo.ts";
+import type {
+  AppData,
+  DashboardData,
+  GamePage,
+  Game,
+  Player,
+} from "./models.ts";
 import {
   cleanPlayerInput,
   gameInput,
   InputError,
   requireRecord,
 } from "./input.ts";
+
+const gameProjection = `SELECT
+      g.id, g.team_a_player_1_id AS teamAPlayer1Id, g.team_a_player_2_id AS teamAPlayer2Id,
+      g.score_a AS scoreA, g.team_b_player_1_id AS teamBPlayer1Id, g.team_b_player_2_id AS teamBPlayer2Id,
+      g.score_b AS scoreB, g.played_at AS playedAt, g.created_by AS createdBy,
+      a1.name AS teamAPlayer1Name, a2.name AS teamAPlayer2Name,
+      b1.name AS teamBPlayer1Name, b2.name AS teamBPlayer2Name,
+      a1.code || a2.code AS teamACode, b1.code || b2.code AS teamBCode
+    FROM games g
+    JOIN players a1 ON a1.id = g.team_a_player_1_id
+    JOIN players a2 ON a2.id = g.team_a_player_2_id
+    JOIN players b1 ON b1.id = g.team_b_player_1_id
+    JOIN players b2 ON b2.id = g.team_b_player_2_id`;
 
 const isDuplicatePlayerCode = (error: unknown): boolean =>
   error instanceof Error &&
@@ -32,21 +62,7 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
       )
       .all<Player>();
     const gameResult = await db
-      .prepare(
-        `SELECT
-      g.id, g.team_a_player_1_id AS teamAPlayer1Id, g.team_a_player_2_id AS teamAPlayer2Id,
-      g.score_a AS scoreA, g.team_b_player_1_id AS teamBPlayer1Id, g.team_b_player_2_id AS teamBPlayer2Id,
-      g.score_b AS scoreB, g.played_at AS playedAt, g.created_by AS createdBy,
-      a1.name AS teamAPlayer1Name, a2.name AS teamAPlayer2Name,
-      b1.name AS teamBPlayer1Name, b2.name AS teamBPlayer2Name,
-      a1.code || a2.code AS teamACode, b1.code || b2.code AS teamBCode
-    FROM games g
-    JOIN players a1 ON a1.id = g.team_a_player_1_id
-    JOIN players a2 ON a2.id = g.team_a_player_2_id
-    JOIN players b1 ON b1.id = g.team_b_player_1_id
-    JOIN players b2 ON b2.id = g.team_b_player_2_id
-    ORDER BY g.played_at, g.id`,
-      )
+      .prepare(`${gameProjection} ORDER BY g.played_at, g.id`)
       .all<Game>();
     const players = playerResult.results;
     const games = gameResult.results;
@@ -74,6 +90,107 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
       leaderboard,
       fairMatch: createFairMatch(leaderboard),
     };
+  };
+
+  const getGamePage = async (
+    cursorValue: string | null = null,
+  ): Promise<GamePage> => {
+    const cursor = decodeGameCursor(cursorValue);
+    const result = await db
+      .prepare(
+        `${gameProjection}
+      ${cursor ? "WHERE (g.played_at, g.id) < (?, ?)" : ""}
+      ORDER BY g.played_at DESC, g.id DESC LIMIT ?`,
+      )
+      .bind(...(cursor ? [cursor.playedAt, cursor.id] : []), GAME_PAGE_SIZE + 1)
+      .all<Game>();
+    const games = result.results.slice(0, GAME_PAGE_SIZE);
+    if (games.length) {
+      const stats = await db
+        .prepare(
+          `SELECT game_id AS gameId, player_id AS playerId,
+        grand_tichus AS grandTichus, successful_grand_tichus AS successfulGrandTichus,
+        tichus, successful_tichus AS successfulTichus FROM game_player_stats
+        WHERE game_id IN (${games.map(() => "?").join(",")}) ORDER BY player_id`,
+        )
+        .bind(...games.map(({ id }) => id))
+        .all<GameCallStat & { gameId: number }>();
+      for (const game of games)
+        game.callStats = stats.results
+          .filter(({ gameId }) => gameId === game.id)
+          .map(({ gameId: _gameId, ...stat }) => stat);
+    }
+    return {
+      games,
+      nextCursor:
+        result.results.length > GAME_PAGE_SIZE
+          ? encodeGameCursor(games.at(-1)!)
+          : null,
+    };
+  };
+
+  // Elo must replay every result, but only the compact inputs stay on the server.
+  // Joined history and per-game call details are fetched only for the requested page.
+  const getReplayData = async () => {
+    const [players, games] = await Promise.all([
+      db
+        .prepare(
+          "SELECT id, code, name, archived_at AS archivedAt FROM players ORDER BY name",
+        )
+        .all<Player>(),
+      db
+        .prepare(
+          `SELECT id, team_a_player_1_id AS teamAPlayer1Id, team_a_player_2_id AS teamAPlayer2Id,
+        score_a AS scoreA, team_b_player_1_id AS teamBPlayer1Id, team_b_player_2_id AS teamBPlayer2Id,
+        score_b AS scoreB, played_at AS playedAt FROM games ORDER BY played_at, id`,
+        )
+        .all<EloGame>(),
+    ]);
+    return { players: players.results, games: games.results };
+  };
+
+  const getDashboardData = async (): Promise<DashboardData> => {
+    const [replay, history, stats] = await Promise.all([
+      getReplayData(),
+      getGamePage(),
+      db
+        .prepare(
+          `SELECT player_id AS playerId, SUM(tichus) AS tichus,
+        SUM(successful_tichus) AS successfulTichus, SUM(grand_tichus) AS grandTichus,
+        SUM(successful_grand_tichus) AS successfulGrandTichus FROM game_player_stats GROUP BY player_id`,
+        )
+        .all<GameCallStat>(),
+    ]);
+    const totals = new Map(
+      stats.results.map(({ playerId, ...stat }) => [playerId, stat]),
+    );
+    const leaderboard = calculateRatings(replay.players, replay.games)
+      .map((player) => ({ ...player, ...totals.get(player.id) }))
+      .sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
+    return { leaderboard, history };
+  };
+
+  const getPlayerProfile = async (playerId: number) => {
+    const { players, games } = await getReplayData();
+    if (!players.some(({ id }) => id === playerId)) return null;
+    const stats = await db
+      .prepare(
+        `SELECT s.game_id AS gameId, s.player_id AS playerId,
+      s.grand_tichus AS grandTichus, s.successful_grand_tichus AS successfulGrandTichus,
+      s.tichus, s.successful_tichus AS successfulTichus
+      FROM game_player_stats s JOIN games g ON g.id = s.game_id
+      WHERE ? IN (g.team_a_player_1_id, g.team_a_player_2_id, g.team_b_player_1_id, g.team_b_player_2_id)`,
+      )
+      .bind(playerId)
+      .all<GameCallStat & { gameId: number }>();
+    const byGame = new Map<number, GameCallStat[]>();
+    for (const { gameId, ...stat } of stats.results) {
+      const calls = byGame.get(gameId) ?? [];
+      calls.push(stat);
+      byGame.set(gameId, calls);
+    }
+    for (const game of games) game.callStats = byGame.get(game.id) ?? [];
+    return calculatePlayerProfile(players, games, playerId);
   };
 
   const createPlayer = async (input: unknown) => {
@@ -202,6 +319,9 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
 
   return {
     getAppData,
+    getDashboardData,
+    getGamePage,
+    getPlayerProfile,
     createPlayer,
     updatePlayer,
     createGame,

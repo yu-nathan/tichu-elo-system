@@ -5,13 +5,13 @@ import {
 } from "@/app/chatgpt-auth";
 import { Dashboard } from "@/components/dashboard";
 import { getAdmin } from "@/lib/admin";
-import { getAppData } from "@/lib/store";
+import { getDashboardData } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 const Home = async () => {
   const [data, user, admin] = await Promise.all([
-    getAppData(),
+    getDashboardData(),
     getChatGPTUser(),
     getAdmin(),
   ]);

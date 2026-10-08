@@ -26,3 +26,6 @@ export type AppData = {
 
 export type PlayerInput = { code: string; name: string };
 export type PlayerUpdate = Partial<PlayerInput> & { archived?: boolean };
+
+export type GamePage = { games: Game[]; nextCursor: string | null };
+export type DashboardData = { leaderboard: RatingEntry[]; history: GamePage };

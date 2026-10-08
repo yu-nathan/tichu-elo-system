@@ -1,38 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRatio } from "@/lib/format";
 import type { RatingEntry } from "@/lib/elo";
-import type { Game, Player } from "@/lib/models";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import { PlayerProfileContent } from "@/components/dashboard/player-profile";
-import { calculatePlayerProfile } from "@/lib/player-profile";
+import { PlayerProfileLoader } from "@/components/dashboard/player-profile-loader";
 
 export const LeaderboardCard = ({
   active,
-  players,
-  games,
   copied,
   onCopy,
 }: {
   active: RatingEntry[];
-  players: Player[];
-  games: Game[];
   copied: boolean;
   onCopy: () => void;
 }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
-  const profile = useMemo(
-    () =>
-      selectedPlayerId === null
-        ? null
-        : calculatePlayerProfile(players, games, selectedPlayerId),
-    [players, games, selectedPlayerId],
-  );
   return (
     <Dialog>
       <Card className="h-full min-h-0 border-white/8 bg-card/80 shadow-2xl shadow-black/20">
@@ -59,17 +46,17 @@ export const LeaderboardCard = ({
           tabIndex={0}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
-          <div className="hidden grid-cols-[3.5rem_1fr_5.5rem_2.5rem_4rem_4rem] px-5 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:grid">
+          <div className="hidden grid-cols-[2.5rem_minmax(0,1fr)_5rem_6rem_6rem_4rem] gap-3 px-5 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:grid">
             <span>Rank</span>
             <span>Player</span>
             <span className="text-right">Rating</span>
-            <span className="text-right">GP</span>
-            <span className="text-right">GT</span>
+            <span className="text-right">Games played</span>
+            <span className="text-right">Grand Tichu</span>
             <span className="text-right">Tichu</span>
           </div>
           {active.map((player, index) => (
             <div key={player.id} className="border-t border-white/6">
-              <div className="hidden grid-cols-[3.5rem_1fr_5.5rem_2.5rem_4rem_4rem] items-center px-5 py-3.5 sm:grid">
+              <div className="hidden grid-cols-[2.5rem_minmax(0,1fr)_5rem_6rem_6rem_4rem] gap-3 items-center px-5 py-3.5 sm:grid">
                 <Rank index={index} />
                 <PlayerTrigger player={player} onSelect={setSelectedPlayerId} />
                 <span className="text-right font-mono text-emerald-200">
@@ -101,9 +88,9 @@ export const LeaderboardCard = ({
                   </span>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 pl-8 text-[11px] text-muted-foreground">
-                  <span>Games {player.gamesPlayed}</span>
+                  <span>Games played {player.gamesPlayed}</span>
                   <span>
-                    GT{" "}
+                    Grand Tichu{" "}
                     {formatRatio(
                       player.successfulGrandTichus,
                       player.grandTichus,
@@ -118,7 +105,15 @@ export const LeaderboardCard = ({
           ))}
         </CardContent>
       </Card>
-      {profile ? <PlayerProfileContent profile={profile} /> : null}
+      {selectedPlayerId !== null ? (
+        <PlayerProfileLoader
+          key={selectedPlayerId}
+          playerId={selectedPlayerId}
+          name={
+            active.find(({ id }) => id === selectedPlayerId)?.name ?? "Player"
+          }
+        />
+      ) : null}
     </Dialog>
   );
 };

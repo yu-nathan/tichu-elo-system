@@ -1,7 +1,7 @@
 import { apiErrorResponse } from "@/lib/api-errors";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { requireAdminApi } from "@/lib/admin";
-import { createGame } from "@/lib/store";
+import { createGame, getGamePage } from "@/lib/store";
 
 export const POST = async (request: Request) => {
   try {
@@ -10,6 +10,17 @@ export const POST = async (request: Request) => {
     const user = await getChatGPTUser();
     await createGame(await request.json(), user!.email);
     return Response.json({ ok: true }, { status: 201 });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+};
+
+export const GET = async (request: Request) => {
+  try {
+    return Response.json(
+      await getGamePage(new URL(request.url).searchParams.get("cursor")),
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     return apiErrorResponse(error);
   }

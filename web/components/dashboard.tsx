@@ -9,10 +9,10 @@ import { MatchmakerCard } from "@/components/dashboard/matchmaker-card";
 import { HistoryCard } from "@/components/dashboard/history-card";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { discordHistory, discordLeaderboard } from "@/lib/discord";
-import type { AppData } from "@/lib/models";
+import type { DashboardData } from "@/lib/models";
 
 type Props = {
-  data: AppData;
+  data: DashboardData;
   userEmail: string | null;
   isAdmin: boolean;
   signInHref: string;
@@ -125,8 +125,6 @@ export const Dashboard = ({
             >
               <LeaderboardCard
                 active={active}
-                players={data.players}
-                games={data.games}
                 copied={copied === "leaderboard"}
                 onCopy={() => copy("leaderboard", discordLeaderboard(data))}
               />
@@ -154,9 +152,11 @@ export const Dashboard = ({
               )}
             >
               <HistoryCard
-                games={data.games}
+                initialPage={data.history}
                 copied={copied === "history"}
-                onCopy={() => copy("history", discordHistory(data))}
+                onCopy={() =>
+                  copy("history", discordHistory({ games: data.history.games }))
+                }
               />
             </Tabs.Panel>
           </section>
