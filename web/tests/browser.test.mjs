@@ -48,7 +48,9 @@ const selectDashboardTab = async (page, name) => {
 
 const selectMatchmakingPlayers = async (page, count = 4) => {
   await selectDashboardTab(page, "Matchmaker");
-  await page.getByRole("button", { name: /0 of \d+ players/ }).click();
+  await page
+    .getByRole("button", { name: "All active players (default)" })
+    .click();
   const choices = page.getByRole("menuitemcheckbox");
   for (let index = 0; index < count; index += 1) {
     await choices.nth(index).click();
@@ -212,14 +214,29 @@ test("dashboard and admin render at mobile and desktop widths without hydration 
   }
 });
 
-test("matchmaking starts empty, activates with four players, and clears random teams on selection changes", async (context) => {
+test("matchmaking defaults to the fairest global matchup and supports custom or all-player pools", async (context) => {
   const { page, errors } = await openPage(context, "/");
   const randomize = page.getByRole("button", { name: "Randomize teams" });
   const fair = page.getByRole("button", { name: "Find fair teams" });
-  await expect(page.getByText("Choose at least 4 players")).toBeVisible();
-  await expect(randomize).toBeDisabled();
+  const data = await (await page.request.get("/api/state")).json();
+  await expect(
+    page.getByText("Fairest matchup", { exact: true }),
+  ).toBeVisible();
+  const expectedMatch = data.fairMatch;
+  await expect(
+    page.getByText(`${expectedMatch.gap.toFixed(1)} rating gap`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+  for (const player of [...expectedMatch.teamA, ...expectedMatch.teamB])
+    await expect(
+      page.getByRole("region", { name: "Matchmaking controls" }),
+    ).toContainText(player.name);
+  await expect(randomize).toBeEnabled();
   await expect(fair).toBeDisabled();
-  await page.getByRole("button", { name: /0 of \d+ players/ }).click();
+  await page
+    .getByRole("button", { name: "All active players (default)" })
+    .click();
   const choices = page.getByRole("menuitemcheckbox");
   const names = [];
   for (let index = 0; index < (await choices.count()); index += 1) {
@@ -231,6 +248,8 @@ test("matchmaking starts empty, activates with four players, and clears random t
   }
   await page.keyboard.press("Escape");
   await expect(randomize).toBeDisabled();
+  await expect(page.getByText("Choose at least 4 players")).toBeVisible();
+  await expect(page.getByText("Team one", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /3 of \d+ players/ }).click();
   names.push((await choices.nth(3).innerText()).split("\n")[0]);
   await choices.nth(3).click();
@@ -239,6 +258,7 @@ test("matchmaking starts empty, activates with four players, and clears random t
   await expect(fair).toBeDisabled();
   await randomize.click();
   await expect(fair).toBeEnabled();
+  await expect(page.getByText("Random matchup", { exact: true })).toBeVisible();
   const teamCards = page.getByText(/^Team (one|two)$/).locator("..");
   const teamText = (await teamCards.allTextContents()).join(" ");
   for (const name of names) assert.ok(teamText.includes(name));
@@ -250,9 +270,28 @@ test("matchmaking starts empty, activates with four players, and clears random t
   await expect(randomize).toBeDisabled();
   await expect(fair).toBeDisabled();
   await expect(page.getByText("Team one", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: /3 of \d+ players/ }).click();
+  await page
+    .getByRole("menuitem", { name: "Include all players", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "All players", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Fairest matchup", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(`${expectedMatch.gap.toFixed(1)} rating gap`, {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "All players", exact: true }).click();
+  for (const choice of await choices.all())
+    await expect(choice).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   await page.reload();
   await expect(
-    page.getByRole("button", { name: /0 of \d+ players/ }),
+    page.getByRole("button", { name: "All active players (default)" }),
   ).toBeVisible();
   assert.deepEqual(errors, []);
 });

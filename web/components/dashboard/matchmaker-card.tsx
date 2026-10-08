@@ -10,6 +10,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -22,10 +24,14 @@ import {
 export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
   const [selected, setSelected] = useState(() => new Set<number>());
   const [randomMatch, setRandomMatch] = useState<FairMatch | null>(null);
-  const match = useMemo(
-    () => createFairMatch(active.filter((player) => selected.has(player.id))),
+  const pool = useMemo(
+    () =>
+      selected.size
+        ? active.filter((player) => selected.has(player.id))
+        : active,
     [active, selected],
   );
+  const match = useMemo(() => createFairMatch(pool), [pool]);
   const displayedMatch = randomMatch ?? match;
 
   const togglePlayer = (id: number) => {
@@ -39,18 +45,21 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
   };
 
   const randomizeTeams = () => {
-    setRandomMatch(
-      createRandomMatch(active.filter((player) => selected.has(player.id))),
-    );
+    setRandomMatch(createRandomMatch(pool));
   };
 
   return (
-    <Card className="min-h-0 border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 to-card">
+    <Card className="min-h-0 gap-3 py-3 border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 to-card">
       <CardHeader className="shrink-0">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Badge className="bg-emerald-300 text-emerald-950">Matchmaker</Badge>
+          {displayedMatch ? (
+            <span className="text-xs font-medium text-primary">
+              {randomMatch ? "Random matchup" : "Fairest matchup"}
+            </span>
+          ) : null}
         </div>
-        <CardTitle className="mt-3 text-xl">
+        <CardTitle className="mt-1 text-xl">
           {displayedMatch
             ? `${displayedMatch.gap.toFixed(1)} rating gap`
             : "Choose at least 4 players"}
@@ -60,7 +69,7 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
         as="section"
         aria-label="Matchmaking controls"
         tabIndex={0}
-        className="min-h-0 overflow-y-auto overscroll-contain space-y-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="min-h-0 overflow-y-auto overscroll-contain space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <div>
           <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -73,15 +82,27 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
               }
             >
               <span>
-                {active.length > 0 && selected.size === active.length
-                  ? "All players"
-                  : `${selected.size} of ${active.length} players`}
+                {active.length > 0 && selected.size === 0
+                  ? "All active players (default)"
+                  : active.length > 0 && selected.size === active.length
+                    ? "All players"
+                    : `${selected.size} of ${active.length} players`}
               </span>
               <ChevronDown />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-64">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Matchmaking pool</DropdownMenuLabel>
+                <DropdownMenuItem
+                  disabled={!active.length || selected.size === active.length}
+                  onClick={() => {
+                    setSelected(new Set(active.map(({ id }) => id)));
+                    setRandomMatch(null);
+                  }}
+                >
+                  Include all players
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {active.map((player) => (
                   <DropdownMenuCheckboxItem
                     key={player.id}
@@ -150,7 +171,7 @@ const Team = ({
   rating: number;
 }) => {
   return (
-    <div className="rounded-lg border border-white/8 bg-black/15 p-3">
+    <div className="rounded-lg border border-white/8 bg-black/15 p-2">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-xs text-muted-foreground">{label}</p>
