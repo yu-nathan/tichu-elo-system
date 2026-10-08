@@ -117,12 +117,12 @@ test("empty profiles have a baseline and no invented rates or partner winners", 
 });
 
 test("each team position identifies only its teammate and the right outcome", () => {
-  const games = [game(1)];
+  const games = [game(1), game(2), game(3)];
   for (const [id, teammate, wins, losses] of [
-    [1, 2, 1, 0],
-    [2, 1, 1, 0],
-    [3, 4, 0, 1],
-    [4, 3, 0, 1],
+    [1, 2, 3, 0],
+    [2, 1, 3, 0],
+    [3, 4, 0, 3],
+    [4, 3, 0, 3],
   ]) {
     const profile = calculatePlayerProfile(players, games, id)!;
     assert.equal(profile.wins, wins);
@@ -131,20 +131,47 @@ test("each team position identifies only its teammate and the right outcome", ()
       profile.bestFriends.map(({ id }) => id),
       [teammate],
     );
-    assert.equal(profile.carryingMe.length, wins);
-    assert.equal(profile.draggingMeDown.length, losses);
+    assert.equal(profile.carryingMe.length, wins ? 1 : 0);
+    assert.equal(profile.draggingMeDown.length, losses ? 1 : 0);
   }
 });
 
-test("all tied partners are alphabetical, including archived partners", () => {
+const partnershipGames = (
+  records: Array<{ partnerId: number; games: number; wins: number }>,
+) => {
+  let id = 0;
+  return records.flatMap((record) =>
+    Array.from({ length: record.games }, (_, index) =>
+      game(++id, [1, record.partnerId], [5, 6], index < record.wins),
+    ),
+  );
+};
+
+test("one or two games cannot earn outcome highlights; three games qualify", () => {
+  for (const won of [true, false]) {
+    for (const count of [1, 2, 3]) {
+      const profile = calculatePlayerProfile(
+        players,
+        partnershipGames([
+          { partnerId: 2, games: count, wins: won ? count : 0 },
+        ]),
+        1,
+      )!;
+      assert.equal(profile.hasEligiblePartners, count === 3);
+      assert.equal(profile.carryingMe.length, count === 3 && won ? 1 : 0);
+      assert.equal(profile.draggingMeDown.length, count === 3 && !won ? 1 : 0);
+      assert.equal(profile.bestFriends[0].games, count);
+    }
+  }
+});
+
+test("all equally supported partners tie alphabetically, including archived partners", () => {
   const profile = calculatePlayerProfile(
     players,
-    [
-      game(1),
-      game(2, [1, 3], [2, 4]),
-      game(3, [1, 2], [3, 4], false),
-      game(4, [1, 3], [2, 4], false),
-    ],
+    partnershipGames([
+      { partnerId: 2, games: 4, wins: 2 },
+      { partnerId: 3, games: 4, wins: 2 },
+    ]),
     1,
   )!;
   for (const key of ["bestFriends", "carryingMe", "draggingMeDown"] as const) {
@@ -153,63 +180,93 @@ test("all tied partners are alphabetical, including archived partners", () => {
       ["Bea", "Zoe"],
     );
   }
-  assert.equal(profile.bestFriends[0].games, 2);
-  assert.equal(profile.carryingMe[0].wins, 1);
-  assert.equal(profile.draggingMeDown[0].losses, 1);
 });
 
-test("partner rankings use win and loss rates while best friends use game counts", () => {
-  const games = [
-    game(1),
-    game(2),
-    game(3, [1, 2], [3, 4], false),
-    game(4, [1, 2], [3, 4], false),
-    game(5, [1, 3], [2, 4]),
-    game(6, [1, 4], [2, 3], false),
-  ];
-  const profile = calculatePlayerProfile(players, games, 1)!;
-  assert.deepEqual(
-    profile.bestFriends.map(({ id }) => id),
-    [2],
-  );
-  assert.deepEqual(
-    profile.carryingMe.map(({ id }) => id),
-    [3],
-  );
-  assert.deepEqual(
-    profile.draggingMeDown.map(({ id }) => id),
-    [4],
-  );
-  assert.equal(profile.bestFriends[0].games, 4);
-  assert.equal(profile.carryingMe[0].wins, 1);
-  assert.equal(profile.carryingMe[0].games, 1);
-  assert.equal(profile.draggingMeDown[0].losses, 1);
-  assert.equal(profile.draggingMeDown[0].games, 1);
+test("established records outrank one-game and three-game perfect records for both outcomes", () => {
+  for (const outcome of ["wins", "losses"] as const) {
+    const key = outcome === "wins" ? "carryingMe" : "draggingMeDown";
+    for (const smallCount of [1, 3]) {
+      const profile = calculatePlayerProfile(
+        players,
+        partnershipGames([
+          {
+            partnerId: 2,
+            games: smallCount,
+            wins: outcome === "wins" ? smallCount : 0,
+          },
+          { partnerId: 3, games: 10, wins: outcome === "wins" ? 8 : 2 },
+        ]),
+        1,
+      )!;
+      assert.deepEqual(
+        profile[key].map(({ id }) => id),
+        [3],
+      );
+      // Displayed figures remain actual results, not the ranking score.
+      assert.equal(
+        formatPercentage(profile[key][0][outcome], profile[key][0].games),
+        "80.0%",
+      );
+      assert.equal(
+        formatRatio(profile[key][0][outcome], profile[key][0].games),
+        "8/10",
+      );
+    }
+  }
 });
 
-test("equal rates tie across different game counts and retain each partner's denominator", () => {
-  const games = [
-    game(1),
-    game(2, [1, 2], [3, 4], false),
-    game(3, [1, 3], [2, 4]),
-    game(4, [1, 3], [2, 4]),
-    game(5, [1, 3], [2, 4], false),
-    game(6, [1, 3], [2, 4], false),
-  ];
-  const profile = calculatePlayerProfile(players, games, 1)!;
-  for (const key of ["carryingMe", "draggingMeDown"] as const) {
+test("outcome rate still matters and cannot be replaced by games or outcome counts", () => {
+  for (const outcome of ["wins", "losses"] as const) {
+    const key = outcome === "wins" ? "carryingMe" : "draggingMeDown";
+    const profile = calculatePlayerProfile(
+      players,
+      partnershipGames([
+        { partnerId: 2, games: 10, wins: outcome === "wins" ? 8 : 2 },
+        { partnerId: 3, games: 30, wins: outcome === "wins" ? 15 : 15 },
+      ]),
+      1,
+    )!;
     assert.deepEqual(
-      profile[key].map(({ name, games }) => ({ name, games })),
-      [
-        { name: "Bea", games: 4 },
-        { name: "Zoe", games: 2 },
-      ],
+      profile[key].map(({ id }) => id),
+      [2],
+    );
+    assert.deepEqual(
+      profile.bestFriends.map(({ id }) => id),
+      [3],
     );
   }
-  assert.deepEqual(
-    profile.bestFriends.map(({ id }) => id),
-    [3],
-  );
+});
+
+test("equal outcome rates favor the larger sample", () => {
+  const profile = calculatePlayerProfile(
+    players,
+    partnershipGames([
+      { partnerId: 2, games: 4, wins: 2 },
+      { partnerId: 3, games: 10, wins: 5 },
+    ]),
+    1,
+  )!;
+  for (const key of ["carryingMe", "draggingMeDown"] as const) {
+    assert.deepEqual(
+      profile[key].map(({ id }) => id),
+      [3],
+    );
+  }
+});
+
+test("ineligible wins or losses do not award a zero-outcome eligible partner", () => {
+  for (const wins of [0, 3]) {
+    const profile = calculatePlayerProfile(
+      players,
+      partnershipGames([
+        { partnerId: 2, games: 3, wins },
+        { partnerId: 3, games: 1, wins: wins ? 0 : 1 },
+      ]),
+      1,
+    )!;
+    assert.equal(profile.hasEligiblePartners, true);
+    assert.deepEqual(profile[wins ? "draggingMeDown" : "carryingMe"], []);
+  }
 });
 
 test("rates are ranked before percentage rounding", () => {
@@ -280,16 +337,20 @@ test("history includes opponent activity, timestamp/id ordering, and half K", ()
 });
 
 test("history and partner stats recompute correctly after edits or deletion", () => {
-  const original = [game(1), game(2, [1, 3], [2, 4])];
-  const edited = [
-    original[0],
-    {
-      ...original[1],
-      scoreA: 0,
-      scoreB: 1000,
-      playedAt: "2025-12-01T00:00:00.000Z",
-    },
-  ];
+  const original = partnershipGames([
+    { partnerId: 2, games: 3, wins: 3 },
+    { partnerId: 3, games: 3, wins: 3 },
+  ]);
+  const edited = original.map((entry) =>
+    entry.id >= 4
+      ? {
+          ...entry,
+          scoreA: 0,
+          scoreB: 1000,
+          playedAt: "2025-12-01T00:00:00.000Z",
+        }
+      : entry,
+  );
   for (const games of [original, edited, original.slice(0, 1)]) {
     const before = structuredClone({ players, games });
     const ratings = calculateRatings(players, games);

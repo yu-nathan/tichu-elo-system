@@ -261,7 +261,7 @@ test("player profiles show accurate stats, restore focus, and preserve the match
       .getByRole("button", { name: /4 of \d+ players|All players/ })
       .innerText();
     const triggers = page.getByRole("button", { name: /^View .+'s profile$/ });
-    for (let index = 0; index < 2; index += 1) {
+    for (const index of [0, 1, 3]) {
       const player = data.leaderboard.filter(({ archivedAt }) => !archivedAt)[
         index
       ];
@@ -322,15 +322,26 @@ test("player profiles show accurate stats, restore focus, and preserve the match
           .locator("..");
         await expect(card).toContainText(
           outcome === "won"
-            ? "Highest win rate together"
-            : "Highest loss rate together",
+            ? "Win rate weighted by games played"
+            : "Loss rate weighted by games played",
         );
         for (const partner of await card.getByRole("listitem").all()) {
           await expect(partner.locator("p")).toHaveText(
             new RegExp(`^\\d+\\.\\d% · \\d+/\\d+ games ${outcome}$`),
           );
+          const ratioText = await partner.locator("p").innerText();
+          assert.ok(Number(ratioText.match(/\/(\d+)/)[1]) >= 3);
+        }
+        if (games.length < 3) {
+          await expect(card.getByRole("listitem")).toHaveCount(0);
+          await expect(card).toContainText(
+            "Play at least 3 games with a partner",
+          );
         }
       }
+      await expect(dialog).toContainText(
+        "Rankings balance win/loss rate with games played",
+      );
       if (games.length) {
         const chart = dialog.getByRole("application");
         await chart.scrollIntoViewIfNeeded();
@@ -339,7 +350,15 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         await expect(dialog.locator(".recharts-tooltip-wrapper")).toBeVisible();
         if (width === 390) {
           const lastPoint = dialog.locator(".recharts-line-dot").last();
-          await lastPoint.tap();
+          await lastPoint.scrollIntoViewIfNeeded();
+          const point = await lastPoint.boundingBox();
+          assert.ok(point);
+          // The active-point marker may cover the underlying dot after keyboard
+          // navigation. Tap its screen position as a real touch user would.
+          await page.touchscreen.tap(
+            point.x + point.width / 2,
+            point.y + point.height / 2,
+          );
           await expect(
             dialog.locator(".recharts-tooltip-wrapper"),
           ).toContainText(`Elo ${player.rating.toFixed(1)}`);

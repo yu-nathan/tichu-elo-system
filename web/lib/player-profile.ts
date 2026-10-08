@@ -22,30 +22,53 @@ export type PlayerProfile = {
   bestFriends: PartnerSummary[];
   carryingMe: PartnerSummary[];
   draggingMeDown: PartnerSummary[];
+  hasEligiblePartners: boolean;
+};
+
+export const MIN_PARTNER_GAMES = 3;
+const PARTNER_SCORE_Z = 1.96;
+
+// Lower endpoint of the 95% Wilson interval, used as a conservative ranking
+// heuristic rather than a displayed win/loss percentage. Larger samples get
+// less of a penalty, without letting game count replace the outcome rate.
+// https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm
+const partnerOutcomeScore = (outcomes: number, games: number) => {
+  const rate = outcomes / games;
+  const zSquared = PARTNER_SCORE_Z ** 2;
+  return (
+    (rate +
+      zSquared / (2 * games) -
+      PARTNER_SCORE_Z *
+        Math.sqrt((rate * (1 - rate)) / games + zSquared / (4 * games ** 2))) /
+    (1 + zSquared / games)
+  );
 };
 
 const leadingPartners = (
   partners: PartnerSummary[],
   field: "games" | "wins" | "losses",
 ) => {
-  const eligible = partners.filter(
-    (partner) => partner.games > 0 && partner[field] > 0,
-  );
-  if (!eligible.length) return [];
-  const denominator = (partner: PartnerSummary) =>
-    field === "games" ? 1 : partner.games;
-  // Compare exact fractions so rounded percentages never create false ties.
-  const best = eligible.reduce((leader, partner) =>
-    partner[field] * denominator(leader) > leader[field] * denominator(partner)
-      ? partner
-      : leader,
-  );
-  return eligible
+  const eligible = partners
     .filter(
       (partner) =>
-        partner[field] * denominator(best) ===
-        best[field] * denominator(partner),
+        partner.games >= (field === "games" ? 1 : MIN_PARTNER_GAMES) &&
+        partner[field] > 0,
     )
+    .map((partner) => ({
+      partner,
+      score:
+        field === "games"
+          ? partner.games
+          : partnerOutcomeScore(partner[field], partner.games),
+    }));
+  if (!eligible.length) return [];
+  const bestScore = eligible.reduce(
+    (best, { score }) => Math.max(best, score),
+    0,
+  );
+  return eligible
+    .filter(({ score }) => score === bestScore)
+    .map(({ partner }) => partner)
     .sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
 };
 
@@ -97,5 +120,8 @@ export const calculatePlayerProfile = (
     bestFriends: leadingPartners(summaries, "games"),
     carryingMe: leadingPartners(summaries, "wins"),
     draggingMeDown: leadingPartners(summaries, "losses"),
+    hasEligiblePartners: summaries.some(
+      ({ games }) => games >= MIN_PARTNER_GAMES,
+    ),
   };
 };

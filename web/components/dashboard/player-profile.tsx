@@ -8,7 +8,11 @@ import {
 } from "@/components/ui/dialog";
 import { EloHistoryChart } from "@/components/dashboard/elo-history-chart";
 import { formatPercentage, formatRatio } from "@/lib/format";
-import type { PartnerSummary, PlayerProfile } from "@/lib/player-profile";
+import {
+  MIN_PARTNER_GAMES,
+  type PartnerSummary,
+  type PlayerProfile,
+} from "@/lib/player-profile";
 
 const Stat = ({
   label,
@@ -139,21 +143,35 @@ export const PlayerProfileContent = ({
           />
           <PartnerHighlight
             title="Carrying me"
-            description="Highest win rate together"
+            description="Win rate weighted by games played"
             partners={profile.carryingMe}
             field="wins"
-            empty="No wins together yet"
+            empty={
+              profile.hasEligiblePartners
+                ? "No wins with eligible partners yet"
+                : `Play at least ${MIN_PARTNER_GAMES} games with a partner`
+            }
             icon={<TrendingUp className="size-5" />}
           />
           <PartnerHighlight
             title="Dragging me down"
-            description="Highest loss rate together"
+            description="Loss rate weighted by games played"
             partners={profile.draggingMeDown}
             field="losses"
-            empty="No losses together yet"
+            empty={
+              profile.hasEligiblePartners
+                ? "No losses with eligible partners yet"
+                : `Play at least ${MIN_PARTNER_GAMES} games with a partner`
+            }
             icon={<TrendingDown className="size-5" />}
           />
         </div>
+        <p className="text-xs text-muted-foreground">
+          Carrying me and Dragging me down require at least {MIN_PARTNER_GAMES}{" "}
+          games together. Rankings balance win/loss rate with games played,
+          giving less weight to small samples. Percentages show your actual
+          results together.
+        </p>
       </div>
     </DialogContent>
   );
