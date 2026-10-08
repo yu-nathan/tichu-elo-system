@@ -54,13 +54,18 @@ export const EloHistoryChart = ({
       className="rounded-xl border border-border bg-card p-3"
     >
       <h3 className="font-medium">Elo history</h3>
-      <p id={summaryId} className="mt-1 text-xs text-muted-foreground">
+      <p
+        id={summaryId}
+        className={
+          last.gameNumber ? "sr-only" : "mt-1 text-xs text-muted-foreground"
+        }
+      >
         {last.gameNumber
           ? `${first.rating.toFixed(1)} starting Elo → ${last.rating.toFixed(1)} after ${last.gameNumber} games. Select a point or use the arrow keys to explore.`
           : "No games played yet. Starting Elo: 1,000.0."}
       </p>
       {last.gameNumber ? (
-        <div className="mt-3 h-48 max-h-[22dvh] min-w-0 w-full sm:h-56">
+        <div className="mt-2 h-48 max-h-[18dvh] min-w-0 w-full sm:h-56">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <LineChart
               accessibilityLayer

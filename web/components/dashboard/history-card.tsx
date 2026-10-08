@@ -18,8 +18,8 @@ export const HistoryCard = ({
 }) => {
   const [historyExpanded, setHistoryExpanded] = useState(false);
   return (
-    <Card className="border-white/8 bg-card/80">
-      <CardHeader className="border-b border-white/8">
+    <Card className="h-full min-h-0 border-white/8 bg-card/80">
+      <CardHeader className="shrink-0 border-b border-white/8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Badge
@@ -36,7 +36,12 @@ export const HistoryCard = ({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-1 px-3">
+      <CardContent
+        as="section"
+        aria-label="Recent games list"
+        tabIndex={0}
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
         {games
           .slice(historyExpanded ? -10 : -3)
           .reverse()

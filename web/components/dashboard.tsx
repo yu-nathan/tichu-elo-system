@@ -1,6 +1,8 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LogIn, Settings, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Tabs } from "@base-ui/react/tabs";
 import { Button } from "@/components/ui/button";
 import { LeaderboardCard } from "@/components/dashboard/leaderboard-card";
 import { MatchmakerCard } from "@/components/dashboard/matchmaker-card";
@@ -24,20 +26,21 @@ export const Dashboard = ({
   signInHref,
   signOutHref,
 }: Props) => {
+  const [view, setView] = useState("leaderboard");
   const active = useMemo(
     () => data.leaderboard.filter((player) => !player.archivedAt),
     [data.leaderboard],
   );
   const { copied, error, copy } = useClipboard();
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <header className="mb-6 flex items-center justify-between border-b border-white/8 pb-5">
+    <main className="h-dvh overflow-hidden bg-background text-foreground">
+      <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col px-3 py-3 sm:px-6 lg:px-8">
+        <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/8 pb-3">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">
               <Sparkles className="size-3.5" /> Tichu Elo
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
               Live standings, match history, and balanced teams.
             </p>
           </div>
@@ -79,23 +82,85 @@ export const Dashboard = ({
             {error}
           </p>
         ) : null}
-        <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
-          <LeaderboardCard
-            active={active}
-            players={data.players}
-            games={data.games}
-            copied={copied === "leaderboard"}
-            onCopy={() => copy("leaderboard", discordLeaderboard(data))}
-          />
-          <div className="grid content-start gap-5">
-            <MatchmakerCard active={active} />
-            <HistoryCard
-              games={data.games}
-              copied={copied === "history"}
-              onCopy={() => copy("history", discordHistory(data))}
-            />
-          </div>
-        </section>
+        <Tabs.Root
+          value={view}
+          onValueChange={setView}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <Tabs.List
+            aria-label="Dashboard views"
+            className="mb-3 grid shrink-0 grid-cols-3 gap-1 rounded-lg bg-muted p-1 lg:hidden"
+          >
+            {[
+              ["leaderboard", "Leaderboard"],
+              ["matchmaker", "Matchmaker"],
+              ["history", "Recent games"],
+            ].map(([id, label]) => (
+              <Tabs.Tab
+                key={id}
+                value={id}
+                render={
+                  <Button
+                    variant={view === id ? "secondary" : "ghost"}
+                    size="sm"
+                  />
+                }
+              >
+                {label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+          {/* CSS controls visibility so desktop can expose every panel. Keeping
+              panels mounted preserves selections when mobile tabs change. */}
+          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.2fr_.8fr] lg:grid-rows-[minmax(0,auto)_minmax(0,1fr)]">
+            <Tabs.Panel
+              value="leaderboard"
+              keepMounted
+              inert={false}
+              hidden={false}
+              className={cn(
+                "min-h-0 lg:row-span-2 lg:block",
+                view !== "leaderboard" && "hidden",
+              )}
+            >
+              <LeaderboardCard
+                active={active}
+                players={data.players}
+                games={data.games}
+                copied={copied === "leaderboard"}
+                onCopy={() => copy("leaderboard", discordLeaderboard(data))}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel
+              value="matchmaker"
+              keepMounted
+              inert={false}
+              hidden={false}
+              className={cn(
+                "min-h-0 [&>div]:h-full lg:col-start-2 lg:row-start-1 lg:block lg:max-h-[50dvh]",
+                view !== "matchmaker" && "hidden",
+              )}
+            >
+              <MatchmakerCard active={active} />
+            </Tabs.Panel>
+            <Tabs.Panel
+              value="history"
+              keepMounted
+              inert={false}
+              hidden={false}
+              className={cn(
+                "min-h-0 lg:col-start-2 lg:row-start-2 lg:block",
+                view !== "history" && "hidden",
+              )}
+            >
+              <HistoryCard
+                games={data.games}
+                copied={copied === "history"}
+                onCopy={() => copy("history", discordHistory(data))}
+              />
+            </Tabs.Panel>
+          </section>
+        </Tabs.Root>
       </div>
     </main>
   );

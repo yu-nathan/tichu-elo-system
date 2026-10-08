@@ -64,9 +64,13 @@ const CardAction = ({ className, ...props }: ComponentProps<"div">) => {
     />
   );
 };
-const CardContent = ({ className, ...props }: ComponentProps<"div">) => {
+const CardContent = ({
+  as: Component = "div",
+  className,
+  ...props
+}: ComponentProps<"div"> & { as?: "div" | "section" }) => {
   return (
-    <div
+    <Component
       data-slot="card-content"
       className={cn("px-(--card-spacing)", className)}
       {...props}

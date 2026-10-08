@@ -7,6 +7,7 @@ import {
   Trophy,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
 import {
   DialogContent,
@@ -57,8 +58,10 @@ const PlayerHighlight = <T extends OpponentSummary>({
   icon: ReactNode;
 }) => (
   <section className="min-w-0 rounded-xl border border-border bg-card p-3">
-    <div className="mb-2 text-primary">{icon}</div>
-    <h3 className="font-medium">{title}</h3>
+    <h3 className="flex items-center gap-2 text-sm font-medium">
+      <span className="shrink-0 text-primary">{icon}</span>
+      {title}
+    </h3>
     <p className="mt-1 text-xs text-muted-foreground">{description}</p>
     {partners.length ? (
       <>
@@ -94,12 +97,21 @@ export const PlayerProfileContent = ({
 }) => {
   const { player } = profile;
   return (
-    <DialogContent>
+    <DialogContent className="max-w-5xl">
       <header className="pr-8">
-        <Badge variant="outline" className="border-primary/30 text-primary">
-          Player profile
-        </Badge>
-        <DialogTitle className="mt-2 break-words text-2xl font-semibold">
+        <div className="flex items-center gap-1">
+          <Badge variant="outline" className="border-primary/30 text-primary">
+            Player profile
+          </Badge>
+          <InfoTooltip label="How profile highlights are ranked">
+            Carrying me, Dragging me down, and I&apos;m his bitch require at
+            least {MIN_PARTNER_GAMES} games together. Nemesis and Curbstomped
+            require at least {MIN_OPPONENT_GAMES} games against the same
+            opponent. Rankings balance success rates with games played, giving
+            less weight to small samples. Percentages show your actual results.
+          </InfoTooltip>
+        </div>
+        <DialogTitle className="mt-1 break-words text-2xl font-semibold">
           {player.name}
         </DialogTitle>
         <DialogDescription className="mt-1 text-sm text-muted-foreground">
@@ -111,7 +123,7 @@ export const PlayerProfileContent = ({
           played
         </DialogDescription>
       </header>
-      <div className="mt-4 space-y-3">
+      <div className="mt-3 space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Stat
             label="Win rate"
@@ -212,13 +224,6 @@ export const PlayerProfileContent = ({
             icon={<Trophy className="size-5" />}
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          Carrying me, Dragging me down, and I&apos;m his bitch require at least{" "}
-          {MIN_PARTNER_GAMES} games together. Nemesis and Curbstomped require at
-          least {MIN_OPPONENT_GAMES} games against the same opponent. Rankings
-          balance success rates with games played, giving less weight to small
-          samples. Percentages show your actual results.
-        </p>
       </div>
     </DialogContent>
   );

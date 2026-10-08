@@ -51,9 +51,9 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
   };
 
   return (
-    <main className="min-h-screen px-4 py-6 text-foreground sm:px-6">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex items-center justify-between">
+    <main className="h-dvh overflow-hidden px-4 py-6 text-foreground sm:px-6">
+      <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col">
+        <header className="mb-6 flex shrink-0 items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
               Tichu Elo
@@ -80,7 +80,10 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
             </Button>
           </div>
         ) : null}
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
+        <section
+          aria-label="Admin content"
+          className="grid min-h-0 flex-1 gap-6 overflow-y-auto overscroll-contain p-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:grid-cols-[1.1fr_.9fr]"
+        >
           <section className="space-y-6">
             <GameForm
               {...editor}
@@ -109,7 +112,7 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
               <AdminsCard initialAdmins={initialAdmins} />
             ) : null}
           </section>
-        </div>
+        </section>
       </div>
     </main>
   );

@@ -35,8 +35,8 @@ export const LeaderboardCard = ({
   );
   return (
     <Dialog>
-      <Card className="border-white/8 bg-card/80 shadow-2xl shadow-black/20">
-        <CardHeader className="border-b border-white/8">
+      <Card className="h-full min-h-0 border-white/8 bg-card/80 shadow-2xl shadow-black/20">
+        <CardHeader className="shrink-0 border-b border-white/8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <Badge
@@ -53,7 +53,12 @@ export const LeaderboardCard = ({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="px-0">
+        <CardContent
+          as="section"
+          aria-label="Leaderboard players"
+          tabIndex={0}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
           <div className="hidden grid-cols-[3.5rem_1fr_5.5rem_2.5rem_4rem_4rem] px-5 py-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:grid">
             <span>Rank</span>
             <span>Player</span>

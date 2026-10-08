@@ -45,8 +45,8 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
   };
 
   return (
-    <Card className="border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 to-card">
-      <CardHeader>
+    <Card className="min-h-0 border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 to-card">
+      <CardHeader className="shrink-0">
         <div className="flex items-center justify-between">
           <Badge className="bg-emerald-300 text-emerald-950">Matchmaker</Badge>
         </div>
@@ -56,7 +56,12 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
             : "Choose at least 4 players"}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent
+        as="section"
+        aria-label="Matchmaking controls"
+        tabIndex={0}
+        className="min-h-0 overflow-y-auto overscroll-contain space-y-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
         <div>
           <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             <Users className="size-3.5" /> Eligible players

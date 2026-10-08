@@ -41,7 +41,13 @@ const openPage = async (context, path, options = {}) => {
   return { page, errors };
 };
 
+const selectDashboardTab = async (page, name) => {
+  const tab = page.getByRole("tab", { name, exact: true });
+  if (await tab.isVisible()) await tab.click();
+};
+
 const selectMatchmakingPlayers = async (page, count = 4) => {
+  await selectDashboardTab(page, "Matchmaker");
   await page.getByRole("button", { name: /0 of \d+ players/ }).click();
   const choices = page.getByRole("menuitemcheckbox");
   for (let index = 0; index < count; index += 1) {
@@ -196,7 +202,9 @@ test("dashboard and admin render at mobile and desktop widths without hydration 
       }
       assert.ok(
         await page.evaluate(
-          () => document.documentElement.scrollWidth <= window.innerWidth,
+          () =>
+            document.documentElement.scrollWidth <= window.innerWidth &&
+            document.documentElement.scrollHeight <= window.innerHeight,
         ),
       );
       assert.deepEqual(errors, []);
@@ -260,6 +268,7 @@ test("player profiles show accurate stats, restore focus, and preserve the match
     const poolText = await page
       .getByRole("button", { name: /4 of \d+ players|All players/ })
       .innerText();
+    await selectDashboardTab(page, "Leaderboard");
     const triggers = page.getByRole("button", { name: /^View .+'s profile$/ });
     for (const index of [0, 1, 3]) {
       const player = data.leaderboard.filter(({ archivedAt }) => !archivedAt)[
@@ -451,8 +460,37 @@ test("player profiles show accurate stats, restore focus, and preserve the match
               : "Play at least 3 games against an opponent",
           );
       }
-      await expect(dialog).toContainText(
+      const help = dialog.getByRole("button", {
+        name: "How profile highlights are ranked",
+      });
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      if (width === 390) await help.tap();
+      else await help.hover();
+      await expect(page.getByRole("tooltip")).toContainText(
         "Rankings balance success rates with games played",
+      );
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      await expect(dialog).toBeVisible();
+      await help.blur();
+      await help.focus();
+      await expect(page.getByRole("tooltip")).toHaveAttribute("data-open", "");
+      await expect(help).toHaveAttribute("aria-describedby", /.+/);
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      await expect(dialog).toHaveAttribute("data-open", "");
+      assert.equal(
+        await dialog.evaluate(
+          (element) => getComputedStyle(element).scrollbarWidth,
+        ),
+        "none",
+      );
+      assert.ok(
+        await dialog.evaluate(
+          (element) =>
+            element.getBoundingClientRect().height <=
+            window.innerHeight * 0.9 + 1,
+        ),
       );
       if (games.length) {
         const chart = dialog.getByRole("application");
@@ -502,9 +540,94 @@ test("player profiles show accurate stats, restore focus, and preserve the match
       else await close.click();
       await expect(dialog).toHaveCount(0);
       await expect(trigger).toBeFocused();
+      await selectDashboardTab(page, "Matchmaker");
       await expect(
         page.getByRole("button", { name: /4 of \d+ players|All players/ }),
       ).toHaveText(poolText);
+      await selectDashboardTab(page, "Leaderboard");
+    }
+    assert.deepEqual(errors, []);
+  }
+});
+
+test("dashboard stays in the viewport with mobile tabs and independently scrolling cards", async (context) => {
+  for (const viewport of [
+    { width: 390, height: 600 },
+    { width: 844, height: 390 },
+    { width: 1280, height: 720 },
+  ]) {
+    const { page, errors } = await openPage(context, "/", { viewport });
+    const isMobile = viewport.width < 1024;
+    const tabs = page.getByRole("tablist", { name: "Dashboard views" });
+    if (isMobile) {
+      await expect(tabs).toBeVisible();
+      await expect(
+        page.getByRole("tab", { name: "Leaderboard", exact: true }),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(
+        page.getByRole("region", { name: "Recent games list" }),
+      ).toBeHidden();
+      await page.getByRole("tab", { name: "Leaderboard", exact: true }).focus();
+      await page.keyboard.press("ArrowRight");
+      await expect(
+        page.getByRole("tab", { name: "Matchmaker", exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press("Enter");
+    } else await expect(tabs).toBeHidden();
+    await selectMatchmakingPlayers(page);
+    await page.getByRole("button", { name: "Randomize teams" }).click();
+    await selectDashboardTab(page, "Recent games");
+    const history = page.getByRole("region", { name: "Recent games list" });
+    await history.getByRole("button", { name: /Show all/ }).click();
+    await expect(
+      history.getByRole("button", { name: "Show last 3" }),
+    ).toBeVisible();
+    await history.focus();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("End");
+    await expect
+      .poll(() => history.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(0);
+    await selectDashboardTab(page, "Leaderboard");
+    const leaderboard = page.getByRole("region", {
+      name: "Leaderboard players",
+    });
+    await leaderboard
+      .getByRole("button", { name: /^View .+'s profile$/ })
+      .last()
+      .scrollIntoViewIfNeeded();
+    await selectDashboardTab(page, "Matchmaker");
+    await expect(
+      page.getByRole("button", { name: /4 of \d+ players|All players/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Find fair teams" }),
+    ).toBeEnabled();
+    assert.ok(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollHeight <= innerHeight &&
+          document.documentElement.scrollWidth <= innerWidth &&
+          scrollY === 0,
+      ),
+    );
+    if (isMobile) {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      for (const name of [
+        "Leaderboard players",
+        "Matchmaking controls",
+        "Recent games list",
+      ])
+        await expect(page.getByRole("region", { name })).toBeVisible();
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollHeight <= innerHeight,
+        ),
+      );
+      await page.setViewportSize(viewport);
+      await expect(
+        page.getByRole("tab", { name: "Matchmaker", exact: true }),
+      ).toHaveAttribute("aria-selected", "true");
     }
     assert.deepEqual(errors, []);
   }
