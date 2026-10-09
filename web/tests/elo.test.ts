@@ -13,6 +13,7 @@ const players: EloPlayer[] = ["C", "Y", "S", "R", "N", "J"].map(
     code,
     name: code,
     archivedAt: null,
+    gender: "M",
   }),
 );
 

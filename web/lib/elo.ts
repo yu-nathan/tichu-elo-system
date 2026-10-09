@@ -1,7 +1,10 @@
+export type PlayerGender = "M" | "F";
+
 export type EloPlayer = {
   id: number;
   code: string;
   name: string;
+  gender: PlayerGender;
   archivedAt: string | null;
 };
 

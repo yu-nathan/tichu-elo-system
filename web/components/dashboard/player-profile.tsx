@@ -19,6 +19,7 @@ import { formatPercentage, formatRatio } from "@/lib/format";
 import {
   MIN_PARTNER_GAMES,
   MIN_OPPONENT_GAMES,
+  tichuPartnerTitle,
   type OpponentSummary,
   type PlayerProfile,
 } from "@/lib/player-profile";
@@ -96,6 +97,7 @@ export const PlayerProfileContent = ({
   profile: PlayerProfile;
 }) => {
   const { player } = profile;
+  const partnerTitle = tichuPartnerTitle(profile.imHisBitch);
   return (
     <DialogContent className="max-w-5xl">
       <header className="pr-8">
@@ -104,11 +106,11 @@ export const PlayerProfileContent = ({
             Player profile
           </Badge>
           <InfoTooltip label="How profile highlights are ranked">
-            Carrying me, Dragging me down, and I&apos;m his bitch require at
-            least {MIN_PARTNER_GAMES} games together. Nemesis and Curbstomped
-            require at least {MIN_OPPONENT_GAMES} games against the same
-            opponent. Rankings balance success rates with games played, giving
-            less weight to small samples. Percentages show your actual results.
+            Carrying me, Dragging me down, and {partnerTitle} require at least{" "}
+            {MIN_PARTNER_GAMES} games together. Nemesis and Curbstomped require
+            at least {MIN_OPPONENT_GAMES} games against the same opponent.
+            Rankings balance success rates with games played, giving less weight
+            to small samples. Percentages show your actual results.
           </InfoTooltip>
         </div>
         <DialogTitle className="mt-1 break-words text-2xl font-semibold">
@@ -186,7 +188,7 @@ export const PlayerProfileContent = ({
             icon={<TrendingDown className="size-5" />}
           />
           <PlayerHighlight
-            title="I'm his bitch"
+            title={partnerTitle}
             description="Partner Tichu success weighted by games together"
             partners={profile.imHisBitch}
             detail={(person) =>

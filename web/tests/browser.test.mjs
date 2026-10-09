@@ -296,6 +296,59 @@ test("matchmaking defaults to the fairest global matchup and supports custom or 
   assert.deepEqual(errors, []);
 });
 
+test("profile copy uses her for Rebekah, his for a male teammate, and their for ties", async (context) => {
+  for (const [kind, title] of [
+    ["female", "I'm her bitch"],
+    ["male", "I'm his bitch"],
+    ["tie", "I'm their bitch"],
+  ]) {
+    const { page, errors } = await openPage(context, "/", {
+      viewport: { width: 390, height: 900 },
+      hasTouch: true,
+    });
+    const data = await (await page.request.get("/api/state")).json();
+    const rebekah = data.players.find(({ name }) => name === "Rebekah S.");
+    const male = data.players.find(({ gender }) => gender === "M");
+    const teammate = data.players.find(
+      ({ id, gender }) => id !== male.id && gender === "M",
+    );
+    assert.equal(rebekah.gender, "F");
+    const profileURL = `/api/players/${male.id}/profile`;
+    const profile = await (await page.request.get(profileURL)).json();
+    const partners =
+      kind === "female"
+        ? [rebekah]
+        : kind === "male"
+          ? [teammate]
+          : [rebekah, teammate];
+    await page.route(`**${profileURL}`, (route) =>
+      route.fulfill({
+        json: {
+          ...profile,
+          imHisBitch: partners.map((partner) => ({
+            ...partner,
+            games: 3,
+            wins: 2,
+            losses: 1,
+            tichus: 3,
+            successfulTichus: 2,
+          })),
+        },
+      }),
+    );
+    await selectDashboardTab(page, "Leaderboard");
+    await page
+      .getByRole("button", { name: `View ${male.name}'s profile`, exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", { name: male.name, exact: true });
+    const heading = dialog.getByRole("heading", { name: title, exact: true });
+    await expect(heading).toBeVisible();
+    for (const partner of partners)
+      await expect(heading.locator("..")).toContainText(partner.name);
+    assert.deepEqual(errors, []);
+  }
+});
+
 test("player profiles show accurate stats, restore focus, and preserve the matchmaking pool", async (context) => {
   for (const width of [390, 1280]) {
     const { page, errors } = await openPage(context, "/", {
@@ -356,7 +409,7 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         "Best friend",
         "Carrying me",
         "Dragging me down",
-        "I'm his bitch",
+        /^I'm (his|her|their) bitch$/,
         "Nemesis",
         "Curbstomped",
       ]) {
@@ -391,7 +444,10 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         }
       }
       const tichuCard = dialog
-        .getByRole("heading", { name: "I'm his bitch", exact: true })
+        .getByRole("heading", {
+          name: /^I'm (his|her|their) bitch$/,
+          exact: true,
+        })
         .locator("..");
       const partnerCalls = new Map();
       for (const game of games) {
@@ -431,6 +487,16 @@ test("player profiles show accurate stats, restore focus, and preserve the match
       const bestScore = Math.max(...eligible.map(([, calls]) => score(calls)));
       const leaders = eligible.filter(
         ([, calls]) => score(calls) === bestScore,
+      );
+      const possessive =
+        leaders.length === 1
+          ? data.leaderboard.find(({ id }) => id === leaders[0][0]).gender ===
+            "F"
+            ? "her"
+            : "his"
+          : "their";
+      await expect(tichuCard.getByRole("heading")).toHaveText(
+        `I'm ${possessive} bitch`,
       );
       await expect(tichuCard.getByRole("listitem")).toHaveCount(leaders.length);
       for (const [id, calls] of leaders) {

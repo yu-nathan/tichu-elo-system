@@ -4,11 +4,13 @@ import {
   type EloPlayer,
   type RatingEntry,
   type RatingHistoryPoint,
+  type PlayerGender,
 } from "./elo.ts";
 
 export type OpponentSummary = {
   id: number;
   name: string;
+  gender: PlayerGender;
   games: number;
   wins: number;
   losses: number;
@@ -37,6 +39,18 @@ export type PlayerProfile = {
 export const MIN_PARTNER_GAMES = 3;
 export const MIN_OPPONENT_GAMES = MIN_PARTNER_GAMES;
 const PARTNER_SCORE_Z = 1.96;
+
+export const tichuPartnerTitle = (
+  partners: Pick<PartnerSummary, "gender">[],
+) => {
+  const possessive =
+    partners.length === 1
+      ? partners[0].gender === "F"
+        ? "her"
+        : "his"
+      : "their";
+  return `I'm ${possessive} bitch`;
+};
 
 // Lower endpoint of the 95% Wilson interval, used as a conservative ranking
 // heuristic rather than a displayed win/loss percentage. Larger samples get
@@ -110,7 +124,7 @@ export const calculatePlayerProfile = (
 ): PlayerProfile | null => {
   const { player, history } = calculateRatingHistory(players, games, playerId);
   if (!player) return null;
-  const names = new Map(players.map(({ id, name }) => [id, name]));
+  const playersById = new Map(players.map((player) => [player.id, player]));
   const partners = new Map<number, PartnerSummary>();
   const opponents = new Map<number, OpponentSummary>();
   let wins = 0;
@@ -132,7 +146,8 @@ export const calculatePlayerProfile = (
     const partnerId = team.find((id) => id !== playerId)!;
     const partner = partners.get(partnerId) ?? {
       id: partnerId,
-      name: names.get(partnerId)!,
+      name: playersById.get(partnerId)!.name,
+      gender: playersById.get(partnerId)!.gender,
       games: 0,
       wins: 0,
       losses: 0,
@@ -151,7 +166,8 @@ export const calculatePlayerProfile = (
     for (const opponentId of team === teamA ? teamB : teamA) {
       const opponent = opponents.get(opponentId) ?? {
         id: opponentId,
-        name: names.get(opponentId)!,
+        name: playersById.get(opponentId)!.name,
+        gender: playersById.get(opponentId)!.gender,
         games: 0,
         wins: 0,
         losses: 0,

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateRatings, type EloGame, type EloPlayer } from "../lib/elo.ts";
-import { calculatePlayerProfile } from "../lib/player-profile.ts";
+import {
+  calculatePlayerProfile,
+  tichuPartnerTitle,
+} from "../lib/player-profile.ts";
 import { formatPercentage, formatRatio } from "../lib/format.ts";
 
 const players: EloPlayer[] = [
@@ -18,6 +21,7 @@ const players: EloPlayer[] = [
   code: name[0],
   name,
   archivedAt: index === 1 ? "2026-01-01" : null,
+  gender: "M",
 }));
 
 const game = (
@@ -146,6 +150,50 @@ const partnershipGames = (
     ),
   );
 };
+
+test("Tichu highlight wording follows the teammate's saved gender, not the profile owner", () => {
+  for (const gender of ["M", "F"] as const) {
+    const savedPlayers = players.map((player) => ({
+      ...player,
+      gender:
+        player.id === 2
+          ? gender
+          : gender === "M"
+            ? ("F" as const)
+            : ("M" as const),
+    }));
+    const games = [game(1), game(2), game(3)];
+    games[0].callStats = [
+      {
+        playerId: 2,
+        tichus: 1,
+        successfulTichus: 1,
+        grandTichus: 0,
+        successfulGrandTichus: 0,
+      },
+    ];
+    const profile = calculatePlayerProfile(savedPlayers, games, 1)!;
+    assert.equal(profile.imHisBitch[0].gender, gender);
+    assert.equal(
+      tichuPartnerTitle(profile.imHisBitch),
+      gender === "F" ? "I'm her bitch" : "I'm his bitch",
+    );
+  }
+});
+
+test("empty and tied Tichu highlights use plural or neutral wording", () => {
+  assert.equal(tichuPartnerTitle([]), "I'm their bitch");
+  for (const genders of [
+    ["M", "M"],
+    ["F", "F"],
+    ["M", "F"],
+  ] as const) {
+    assert.equal(
+      tichuPartnerTitle(genders.map((gender) => ({ gender }))),
+      "I'm their bitch",
+    );
+  }
+});
 
 test("one or two games cannot earn outcome highlights; three games qualify", () => {
   for (const won of [true, false]) {

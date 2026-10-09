@@ -58,7 +58,7 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
   const getAppData = async (): Promise<AppData> => {
     const playerResult = await db
       .prepare(
-        "SELECT id, code, name, archived_at AS archivedAt FROM players ORDER BY name",
+        "SELECT id, code, name, gender, archived_at AS archivedAt FROM players ORDER BY name",
       )
       .all<Player>();
     const gameResult = await db
@@ -135,7 +135,7 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
     const [players, games] = await Promise.all([
       db
         .prepare(
-          "SELECT id, code, name, archived_at AS archivedAt FROM players ORDER BY name",
+          "SELECT id, code, name, gender, archived_at AS archivedAt FROM players ORDER BY name",
         )
         .all<Player>(),
       db
@@ -194,14 +194,14 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
   };
 
   const createPlayer = async (input: unknown) => {
-    const { code, name } = cleanPlayerInput(input);
+    const { code, name, gender } = cleanPlayerInput(input);
     const now = new Date().toISOString();
     try {
       await db
         .prepare(
-          "INSERT INTO players (code, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+          "INSERT INTO players (code, name, gender, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         )
-        .bind(code, name, now, now)
+        .bind(code, name, gender, now, now)
         .run();
     } catch (error) {
       if (isDuplicatePlayerCode(error))
@@ -214,14 +214,15 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
     const data = requireRecord(input);
     const existing = await db
       .prepare(
-        "SELECT code, name, archived_at AS archivedAt FROM players WHERE id = ?",
+        "SELECT code, name, gender, archived_at AS archivedAt FROM players WHERE id = ?",
       )
       .bind(id)
       .first<Player>();
     if (!existing) throw new InputError("Player not found.");
-    const { code, name } = cleanPlayerInput({
+    const { code, name, gender } = cleanPlayerInput({
       code: data.code ?? existing.code,
       name: data.name ?? existing.name,
+      gender: data.gender === undefined ? existing.gender : data.gender,
     });
     const archivedAt =
       data.archived === true
@@ -232,9 +233,9 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
     try {
       await db
         .prepare(
-          "UPDATE players SET code = ?, name = ?, archived_at = ?, updated_at = ? WHERE id = ?",
+          "UPDATE players SET code = ?, name = ?, gender = ?, archived_at = ?, updated_at = ? WHERE id = ?",
         )
-        .bind(code, name, archivedAt, new Date().toISOString(), id)
+        .bind(code, name, gender, archivedAt, new Date().toISOString(), id)
         .run();
     } catch (error) {
       if (isDuplicatePlayerCode(error))

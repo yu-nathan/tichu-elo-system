@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -19,11 +21,17 @@ export const players = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     code: text("code").notNull(),
     name: text("name").notNull(),
+    gender: text("gender", { enum: ["M", "F"] })
+      .notNull()
+      .default("M"),
     archivedAt: text("archived_at"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [uniqueIndex("idx_players_code").on(table.code)],
+  (table) => [
+    uniqueIndex("idx_players_code").on(table.code),
+    check("players_gender_check", sql`${table.gender} IN ('M', 'F')`),
+  ],
 );
 
 export const games = sqliteTable(

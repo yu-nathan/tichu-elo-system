@@ -4,6 +4,7 @@ import type {
   GameCallStat,
   RatingEntry,
   FairMatch,
+  PlayerGender,
 } from "./elo.ts";
 
 export type Player = EloPlayer;
@@ -24,7 +25,7 @@ export type AppData = {
   fairMatch: FairMatch | null;
 };
 
-export type PlayerInput = { code: string; name: string };
+export type PlayerInput = { code: string; name: string; gender?: PlayerGender };
 export type PlayerUpdate = Partial<PlayerInput> & { archived?: boolean };
 
 export type GamePage = { games: Game[]; nextCursor: string | null };

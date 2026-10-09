@@ -28,7 +28,10 @@ export const cleanPlayerInput = (input: unknown) => {
     throw new InputError("Player code must be 1–3 letters or numbers.");
   if (!name || name.length > 40)
     throw new InputError("Player name must be 1–40 characters.");
-  return { code, name };
+  const gender = data.gender === undefined ? "M" : data.gender;
+  if (gender !== "M" && gender !== "F")
+    throw new InputError("Player gender must be M or F.");
+  return { code, name, gender };
 };
 
 export const gameInput = (input: unknown) => {

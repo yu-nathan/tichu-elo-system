@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync, readdirSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { createRepository } from "../lib/repository.ts";
 import { InputError } from "../lib/input.ts";
 import { createDatabase } from "./helpers/database.ts";
@@ -20,6 +22,95 @@ const input = {
     successfulTichus: 1,
   })),
 };
+
+test("gender migration preserves existing data and backfills Rebekah S. only", (context) => {
+  const sqlite = new DatabaseSync(":memory:");
+  context.after(() => sqlite.close());
+  sqlite.exec("PRAGMA foreign_keys = ON");
+  const directory = new URL("../drizzle/", import.meta.url);
+  for (const file of readdirSync(directory)
+    .filter((file) => file.endsWith(".sql") && file < "0003")
+    .sort()) {
+    sqlite.exec(readFileSync(new URL(file, directory), "utf8"));
+  }
+  sqlite.exec("UPDATE players SET archived_at = '2026-10-01' WHERE code = 'R'");
+  sqlite.exec(
+    "INSERT INTO players (code, name, created_at, updated_at) VALUES ('NEW', 'Existing extra player', '2026-10-01', '2026-10-01')",
+  );
+  const beforePlayers = sqlite
+    .prepare("SELECT * FROM players ORDER BY id")
+    .all();
+  const beforeGames = sqlite.prepare("SELECT * FROM games ORDER BY id").all();
+  sqlite.exec(
+    readFileSync(new URL("0003_player_gender.sql", directory), "utf8"),
+  );
+  const migrated = sqlite.prepare("SELECT * FROM players ORDER BY id").all();
+  assert.deepEqual(
+    migrated.map(({ gender: _gender, ...player }) => ({ ...player })),
+    beforePlayers.map((player) => ({ ...player })),
+  );
+  assert.deepEqual(
+    sqlite.prepare("SELECT * FROM games ORDER BY id").all(),
+    beforeGames,
+  );
+  assert.deepEqual(sqlite.prepare("PRAGMA foreign_key_check").all(), []);
+  for (const player of migrated)
+    assert.equal(player.gender, player.name === "Rebekah S." ? "F" : "M");
+  for (const gender of [null, "X", "", "female"])
+    assert.throws(
+      () =>
+        sqlite
+          .prepare("UPDATE players SET gender = ? WHERE id = 1")
+          .run(gender),
+      /constraint/i,
+    );
+});
+
+test("player genders survive reads, creation, renames and archiving", async (context) => {
+  const { db } = createDatabase(context);
+  const repository = createRepository(db);
+  const original = await repository.getAppData();
+  assert.equal(
+    original.players.find(({ name }) => name === "Rebekah S.")?.gender,
+    "F",
+  );
+  assert.ok(
+    original.players
+      .filter(({ name }) => name !== "Rebekah S.")
+      .every(({ gender }) => gender === "M"),
+  );
+  await repository.updatePlayer(4, {
+    name: "Rebekah renamed",
+    code: "RS",
+    archived: true,
+  });
+  assert.equal((await repository.getPlayerProfile(4))?.player.gender, "F");
+  await repository.createPlayer({ code: "NEW", name: "New Player" });
+  await repository.createPlayer({
+    code: "F",
+    name: "New Female Player",
+    gender: "F",
+  });
+  let data = await repository.getAppData();
+  assert.equal(data.players.find(({ code }) => code === "NEW")?.gender, "M");
+  assert.equal(data.players.find(({ code }) => code === "F")?.gender, "F");
+  await repository.updatePlayer(1, { gender: "F" });
+  data = await repository.getAppData();
+  assert.equal(data.players.find(({ id }) => id === 1)?.gender, "F");
+  assert.equal(
+    (await repository.getDashboardData()).leaderboard.find(({ id }) => id === 1)
+      ?.gender,
+    "F",
+  );
+  for (const gender of [null, "X", "", "female", false]) {
+    await assert.rejects(
+      repository.createPlayer({ code: "BAD", name: "Bad", gender }),
+      InputError,
+    );
+    await assert.rejects(repository.updatePlayer(4, { gender }), InputError);
+  }
+  assert.deepEqual(await repository.getAppData(), data);
+});
 
 test("deleted imported games stay deleted across reads and subsequent writes", async (context) => {
   const { db } = createDatabase(context);
