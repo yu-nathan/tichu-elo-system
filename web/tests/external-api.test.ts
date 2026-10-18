@@ -714,3 +714,85 @@ test("player pagination is bounded and stable without exposing internal fields",
   } while (cursor !== null);
   assert.deepEqual(seen, expected);
 });
+
+test("API rejects duplicate player codes after normalization, including archived players", async (context) => {
+  const f = await fixture(context);
+  const repository = createRepository(f.db);
+  const original = await repository.getAppData();
+  const player = original.players.find(({ id }) => id === 1)!;
+  for (const code of [
+    player.code,
+    player.code.toLowerCase(),
+    ` ${player.code} `,
+    ` ${player.code.toLowerCase()} `,
+  ]) {
+    const response = await f.request("/api/v1/players", {
+      body: { code, name: "Must not replace the existing player", gender: "F" },
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: "That player code is already in use.",
+    });
+  }
+  assert.deepEqual(await repository.getAppData(), original);
+  await repository.updatePlayer(player.id, { archived: true });
+  const archived = await repository.getAppData();
+  const duplicate = await f.request("/api/v1/players", {
+    body: {
+      code: player.code.toLowerCase(),
+      name: "Must not reuse an archived code",
+    },
+  });
+  assert.equal(duplicate.status, 400);
+  assert.deepEqual(await repository.getAppData(), archived);
+  assert.equal(
+    f.sqlite.prepare("SELECT COUNT(*) AS n FROM api_idempotency").get()?.n,
+    0,
+  );
+  assert.equal(
+    f.sqlite.prepare("SELECT COUNT(*) AS n FROM api_writes").get()?.n,
+    0,
+  );
+});
+
+test("concurrent API requests with different keys cannot create duplicate normalized player codes", async (context) => {
+  const f = await fixture(context);
+  const second = await f.store.generateKey("Other scorekeeper", start);
+  const before = await createRepository(f.db).getAppData();
+  const responses = await Promise.all(
+    [
+      { code: "z9", key: f.issued.key },
+      { code: " Z9 ", key: second.key },
+      { code: "Z9", key: f.issued.key },
+    ].map(({ code, key }, index) =>
+      f.request("/api/v1/players", {
+        key,
+        token: `distinct-operation-${index}`,
+        body: { code, name: `New player ${index}` },
+      }),
+    ),
+  );
+  assert.deepEqual(
+    responses.map(({ status }) => status).sort(),
+    [201, 400, 400],
+  );
+  for (const response of responses.filter(({ status }) => status === 400))
+    assert.deepEqual(await response.json(), {
+      error: "That player code is already in use.",
+    });
+  const after = await createRepository(f.db).getAppData();
+  const created = after.players.filter(({ code }) => code === "Z9");
+  assert.equal(created.length, 1);
+  assert.equal(after.players.length, before.players.length + 1);
+  assert.deepEqual(after.games, before.games);
+  assert.equal(
+    f.sqlite.prepare("SELECT COUNT(*) AS n FROM api_idempotency").get()?.n,
+    1,
+  );
+  assert.equal(
+    f.sqlite.prepare("SELECT COUNT(*) AS n FROM api_writes").get()?.n,
+    1,
+  );
+  const successful = responses.find(({ status }) => status === 201)!;
+  assert.deepEqual(await successful.json(), { id: created[0].id });
+});
