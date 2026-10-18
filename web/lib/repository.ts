@@ -42,6 +42,12 @@ const isDuplicatePlayerCode = (error: unknown): boolean =>
   (error.message.includes("UNIQUE constraint failed: players.code") ||
     isDuplicatePlayerCode(error.cause));
 
+// Internal transaction hooks let API idempotency and auditing commit with the record.
+export type CreationTransaction = {
+  before: D1PreparedStatement[];
+  after: D1PreparedStatement[];
+};
+
 export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
   const callStatsStatement = (stats: GameCallStat[], gameId?: number) =>
     db
@@ -193,16 +199,25 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
     return calculatePlayerProfile(players, games, playerId);
   };
 
-  const createPlayer = async (input: unknown) => {
+  const createPlayer = async (
+    input: unknown,
+    transaction?: CreationTransaction,
+  ) => {
     const { code, name, gender } = cleanPlayerInput(input);
     const now = new Date().toISOString();
     try {
-      await db
+      const insert = db
         .prepare(
           "INSERT INTO players (code, name, gender, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         )
-        .bind(code, name, gender, now, now)
-        .run();
+        .bind(code, name, gender, now, now);
+      const before = transaction?.before ?? [];
+      const results = await db.batch([
+        ...before,
+        insert,
+        ...(transaction?.after ?? []),
+      ]);
+      return results[before.length].meta.last_row_id;
     } catch (error) {
       if (isDuplicatePlayerCode(error))
         throw new InputError("That player code is already in use.");
@@ -244,7 +259,11 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
     }
   };
 
-  const createGame = async (input: unknown, email: string) => {
+  const createGame = async (
+    input: unknown,
+    email: string,
+    transaction?: CreationTransaction,
+  ) => {
     const { ids, scoreA, scoreB, playedAt, callStats } = gameInput(input);
     const rows = await db
       .prepare(
@@ -275,7 +294,14 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
       );
     // D1 batches are transactional. MAX(id) identifies the game just inserted
     // within this same batch; no other writer can interleave between statements.
-    await db.batch([insert, callStatsStatement(callStats)]);
+    const before = transaction?.before ?? [];
+    const results = await db.batch([
+      ...before,
+      insert,
+      callStatsStatement(callStats),
+      ...(transaction?.after ?? []),
+    ]);
+    return results[before.length].meta.last_row_id;
   };
 
   const updateGame = async (id: number, input: unknown) => {

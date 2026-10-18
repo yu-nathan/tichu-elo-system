@@ -27,9 +27,11 @@ const DEVELOPMENT_ADMIN: ChatGPTUser = {
 };
 
 export const getChatGPTUser = async (): Promise<ChatGPTUser | null> => {
+  const requestHeaders = await headers();
+  // API credentials never inherit browser admin privileges, including in dev.
+  if (requestHeaders.has("authorization")) return null;
   if (isDevelopmentAuthBypassEnabled()) return DEVELOPMENT_ADMIN;
 
-  const requestHeaders = await headers();
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!userId || !email) return null;

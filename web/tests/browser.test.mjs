@@ -933,3 +933,166 @@ for (const width of [390, 1280]) {
     assert.deepEqual(errors, []);
   });
 }
+
+test("owner API controls show a key once, handle clipboard failure, and manage alerts on mobile and desktop", async (context) => {
+  for (const width of [390, 1280]) {
+    const session = await browser.newContext({
+      baseURL,
+      viewport: { width, height: 900 },
+    });
+    context.after(() => session.close());
+    const page = await session.newPage();
+    page.setDefaultTimeout(10_000);
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const createdAt = Date.now();
+    const info = {
+      id: "browser-fixture",
+      name: "Scorekeeper",
+      createdAt,
+      expiresAt: createdAt + 365 * 86_400_000,
+      lastUsedAt: null,
+      revokedAt: null,
+    };
+    const data = { keys: [], incidents: [] };
+    const token = "tichu_" + "a".repeat(64); // Deliberately fake; never a stored or valid credential.
+    await page.route("**/api/access", async (route) => {
+      if (route.request().method() === "GET")
+        return route.fulfill({ json: data });
+      const body = route.request().postDataJSON();
+      if (body.action === "create") {
+        data.keys = [info];
+        return route.fulfill({ status: 201, json: { key: token, info } });
+      }
+      if (body.action === "acknowledge")
+        data.incidents[0].acknowledgedAt = Date.now();
+      if (body.action === "revoke") info.revokedAt = Date.now();
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.goto("/admin");
+    await expect(page.getByLabel("Key name", { exact: true })).toBeEnabled();
+    await page.getByLabel("Key name", { exact: true }).fill("Scorekeeper");
+    await page
+      .getByRole("button", { name: "Generate API key", exact: true })
+      .click();
+    await expect(page.getByLabel("Generated API key")).toHaveValue(token);
+    await expect(
+      page.getByRole("button", { name: "Generate API key", exact: true }),
+    ).toBeDisabled();
+    await page.evaluate(() =>
+      Object.defineProperty(navigator, "clipboard", {
+        value: {
+          writeText: async () => {
+            throw new Error("denied");
+          },
+        },
+        configurable: true,
+      }),
+    );
+    await page
+      .getByRole("button", { name: "Copy API key", exact: true })
+      .click();
+    await expect(
+      page.getByText(/You can also select and copy the key above/),
+    ).toBeVisible();
+    assert.ok(
+      !(await page.evaluate(
+        (value) =>
+          JSON.stringify(localStorage).includes(value) ||
+          JSON.stringify(sessionStorage).includes(value),
+        token,
+      )),
+    );
+    await page
+      .getByRole("button", { name: "I’ve saved the key", exact: true })
+      .click();
+    await expect(page.getByLabel("Generated API key")).toHaveCount(0);
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: "Revoke Scorekeeper", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Generated API key")).toHaveCount(0);
+    data.incidents = [
+      {
+        bucket: createdAt,
+        firstAt: createdAt,
+        lastAt: createdAt,
+        createdCount: 5,
+        blockedCount: 0,
+        acknowledgedAt: null,
+        sources: [
+          {
+            keyId: info.id,
+            keyName: info.name,
+            resource: "games",
+            createdCount: 5,
+            blockedCount: 0,
+          },
+        ],
+      },
+    ];
+    await page.reload();
+    await expect(
+      page.getByText("1 unread API activity alert.", { exact: false }),
+    ).toBeVisible();
+    await page
+      .getByRole("link", { name: "Review API access", exact: true })
+      .click();
+    await expect(page.getByText("Unread · High write activity")).toBeVisible();
+    await page
+      .getByRole("button", { name: "Acknowledge alert", exact: true })
+      .click();
+    await expect(
+      page.getByText("Acknowledged · High write activity"),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Review API access", exact: true }),
+    ).toHaveCount(0);
+    page.on("dialog", (dialog) => dialog.accept());
+    await page
+      .getByRole("button", { name: "Revoke Scorekeeper", exact: true })
+      .first()
+      .click();
+    await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    );
+    await page
+      .locator("#api-access")
+      .screenshot({ path: `outputs/api-access-${width}.png` });
+    assert.deepEqual(errors, []);
+  }
+});
+
+test("real local routes reject bearer credentials at every existing admin mutation boundary", async (context) => {
+  const { page } = await openPage(context, "/admin");
+  const headers = {
+    authorization: "Bearer tichu_" + "a".repeat(64),
+    "content-type": "application/json",
+    origin: baseURL,
+    "oai-authenticated-user-id": "forged",
+    "oai-authenticated-user-email": "nyu1997@gmail.com",
+  };
+  const paths = [
+    ["/api/games/1", "DELETE"],
+    ["/api/games/1", "PATCH"],
+    ["/api/games", "POST"],
+    ["/api/players/1", "PATCH"],
+    ["/api/players", "POST"],
+    ["/api/admins", "POST"],
+    ["/api/access", "POST"],
+    ["/api/access", "GET"],
+  ];
+  for (const [path, method] of paths) {
+    const response = await page.request.fetch(path, {
+      method,
+      headers,
+      ...(method === "GET" ? {} : { data: {} }),
+    });
+    assert.equal(response.status(), 401, `${method} ${path}`);
+  }
+  const invalidKey = await page.request.get("/api/v1/players", { headers });
+  assert.equal(invalidKey.status(), 401);
+});

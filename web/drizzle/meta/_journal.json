@@ -29,6 +29,20 @@
       "when": 1791539850072,
       "tag": "0003_player_gender",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792290421816,
+      "tag": "0004_external_api",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792290633909,
+      "tag": "0005_external_api_reads",
+      "breakpoints": true
     }
   ]
 }

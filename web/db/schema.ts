@@ -80,3 +80,98 @@ export const gamePlayerStats = sqliteTable(
 export type PlayerRow = typeof players.$inferSelect;
 export type GameRow = typeof games.$inferSelect;
 export type GamePlayerStatRow = typeof gamePlayerStats.$inferSelect;
+
+export const apiKeys = sqliteTable("api_keys", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  hash: text("hash").notNull().unique(),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+  revokedAt: integer("revoked_at"),
+});
+
+export const apiRateBuckets = sqliteTable("api_rate_buckets", {
+  scope: text("scope").primaryKey(),
+  windowStart: integer("window_start").notNull(),
+  count: integer("count").notNull(),
+});
+
+export const apiWriteAttempts = sqliteTable(
+  "api_write_attempts",
+  {
+    id: text("id").primaryKey(),
+    keyId: text("key_id").notNull(),
+    at: integer("at").notNull(),
+  },
+  (table) => [
+    index("idx_api_attempts_at").on(table.at),
+    index("idx_api_attempts_key_at").on(table.keyId, table.at),
+  ],
+);
+
+export const apiIdempotency = sqliteTable(
+  "api_idempotency",
+  {
+    keyId: text("key_id").notNull(),
+    resource: text("resource").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    resourceId: integer("resource_id"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.keyId, table.resource, table.tokenHash] }),
+    index("idx_api_idempotency_created").on(table.createdAt),
+  ],
+);
+
+export const apiWrites = sqliteTable(
+  "api_writes",
+  {
+    id: text("id").primaryKey(),
+    keyId: text("key_id").notNull(),
+    resource: text("resource").notNull(),
+    at: integer("at").notNull(),
+  },
+  (table) => [index("idx_api_writes_at").on(table.at)],
+);
+
+export const apiIncidents = sqliteTable("api_incidents", {
+  bucket: integer("bucket").primaryKey(),
+  firstAt: integer("first_at").notNull(),
+  lastAt: integer("last_at").notNull(),
+  createdCount: integer("created_count").notNull(),
+  blockedCount: integer("blocked_count").notNull(),
+  acknowledgedAt: integer("acknowledged_at"),
+});
+
+export const apiIncidentSources = sqliteTable(
+  "api_incident_sources",
+  {
+    bucket: integer("bucket")
+      .notNull()
+      .references(() => apiIncidents.bucket, { onDelete: "cascade" }),
+    keyId: text("key_id").notNull(),
+    keyName: text("key_name").notNull(),
+    resource: text("resource").notNull(),
+    createdCount: integer("created_count").notNull(),
+    blockedCount: integer("blocked_count").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.bucket, table.keyId, table.resource] }),
+  ],
+);
+
+export const apiReadAttempts = sqliteTable(
+  "api_read_attempts",
+  {
+    id: text("id").primaryKey(),
+    keyId: text("key_id").notNull(),
+    at: integer("at").notNull(),
+  },
+  (table) => [
+    index("idx_api_reads_at").on(table.at),
+    index("idx_api_reads_key_at").on(table.keyId, table.at),
+  ],
+);

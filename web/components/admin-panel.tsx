@@ -3,6 +3,8 @@
 import type { FormEvent } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ApiAccessCard } from "@/components/admin/api-access-card";
+import { useApiAccess } from "@/hooks/use-api-access";
 import { AdminsCard } from "@/components/admins-card";
 import { GameForm } from "@/components/admin/game-form";
 import { GamesCard } from "@/components/admin/games-card";
@@ -18,6 +20,10 @@ import type { AppData } from "@/lib/models";
 type Props = { initialData: AppData; initialAdmins: AdminEntry[] | null };
 
 export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
+  const apiAccess = useApiAccess(Boolean(initialAdmins));
+  const unreadApiAlerts =
+    apiAccess.data?.incidents.filter((incident) => !incident.acknowledgedAt)
+      .length ?? 0;
   const { data, busy, error, warning, setError, mutate, refresh } =
     useAdminData(initialData);
   const editor = useGameEditor(data.players);
@@ -64,6 +70,15 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
             <ArrowLeft /> Leaderboard
           </Button>
         </header>
+        {unreadApiAlerts > 0 ? (
+          <output className="mb-4 shrink-0 rounded-lg border border-border bg-muted p-3 text-sm">
+            {unreadApiAlerts} unread API activity{" "}
+            {unreadApiAlerts === 1 ? "alert" : "alerts"}.{" "}
+            <a href="#api-access" className="font-medium underline">
+              Review API access
+            </a>
+          </output>
+        ) : null}
         {error ? (
           <p
             role="alert"
@@ -109,7 +124,10 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
               }
             />
             {initialAdmins ? (
-              <AdminsCard initialAdmins={initialAdmins} />
+              <>
+                <ApiAccessCard access={apiAccess} />
+                <AdminsCard initialAdmins={initialAdmins} />
+              </>
             ) : null}
           </section>
         </section>

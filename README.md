@@ -108,3 +108,145 @@ port other than 3000. An external Playwright installation can be selected via
 `PLAYWRIGHT_TEST_MODULE` (the absolute path to its `test.mjs`). These tests mock
 mutation requests and cover draft recovery, failed refreshes, clipboard errors,
 hydration, and mobile/desktop layouts without changing saved game data.
+
+## External API
+
+The owner can generate named API keys under **Admin console → API access**.
+Each key expires exactly 365 days after creation. The full key is displayed once;
+save it in a password manager or your integration's secret store. Only its
+SHA-256 hash is stored in D1. Lost keys cannot be retrieved. Revoke a lost key and
+generate a replacement. Up to 10 keys can be active at once; creation is also
+limited to 10 keys per hour to bound security metadata storage.
+
+Only the owner's ChatGPT browser session can manage keys and alerts. API keys
+cannot manage admins or keys, edit/archive players, or update/delete games.
+The existing signed-in admin controls and public leaderboard remain available.
+This API's quotas apply to `/api/v1`, not the site's existing public pages.
+
+Send keys only over HTTPS in the `Authorization: Bearer <key>` header. Do not put
+them in URLs, browser storage, logs, or source code. The API does not enable
+cross-origin browser access; use it from a server-side integration.
+
+| Endpoint                         | Behavior                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /api/v1/leaderboard`        | `{ leaderboard: [...] }`, including ratings, games played, and call totals    |
+| `GET /api/v1/players?cursor=...` | `{ players: [...], nextCursor }`; up to 50 players, ordered by ID             |
+| `GET /api/v1/games?cursor=...`   | `{ games: [...], nextCursor }`; up to 20 games, newest first                  |
+| `POST /api/v1/players`           | Create a player; returns `201` with `{ id }`                                  |
+| `POST /api/v1/games`             | Create a game and optional call stats atomically; returns `201` with `{ id }` |
+
+Omit `cursor` for the first page, pass the returned `nextCursor` unchanged, and
+stop when it is `null`. Read responses exclude creator emails, gender, admin
+information, and key/security metadata. Unsupported methods, record-specific
+write paths, method overrides, and unknown top-level creation fields are rejected.
+
+Creation requests require `Content-Type: application/json` and an
+`Idempotency-Key` header containing 1–128 letters, digits, dots, underscores,
+colons, or hyphens. Generate one identifier per intended creation and reuse it
+when retrying that operation. Identical retries within 24 hours return the same
+`201 { id }` with `Idempotency-Replayed: true`, without creating another record.
+Object field ordering does not matter. Reusing the identifier for a different
+payload returns `409`. Identifiers are scoped to the API key and endpoint; after
+24 hours they may create a new record. Do not blindly retry older requests.
+
+Player payload:
+
+```json
+{ "code": "ABC", "name": "Example Player", "gender": "F" }
+```
+
+Codes are unique, 1–3 letters/numbers, and normalized to uppercase. Names are
+1–40 characters. Gender may be `M` or `F` and defaults to `M`, matching the
+existing player form. Creating an existing code never updates that player.
+
+Game payload (use IDs returned by the players endpoint):
+
+```json
+{
+  "teamAPlayer1Id": 1,
+  "teamAPlayer2Id": 2,
+  "teamBPlayer1Id": 3,
+  "teamBPlayer2Id": 4,
+  "scoreA": 1000,
+  "scoreB": -100,
+  "playedAt": "2026-10-18T12:00:00.000Z"
+}
+```
+
+Games require four distinct active players, whole-number scores, a valid date,
+and no tied score. Optional `callStats` must contain exactly one entry per player,
+with `playerId`, `grandTichus`, `successfulGrandTichus`, `tichus`, and
+`successfulTichus`. Counts must be nonnegative integers; successes cannot exceed
+calls. Client-supplied IDs or creator identities are not accepted.
+
+Example server-side read, with the key injected by your secret manager:
+
+```js
+const response = await fetch(
+  "https://tichu-elo.nyu1997.chatgpt.site/api/v1/players",
+  { headers: { Authorization: `Bearer ${process.env.TICHU_API_KEY}` } },
+);
+const result = await response.json();
+```
+
+### Limits and automatic revocation
+
+| Limit                                   | Allowance                                         |
+| --------------------------------------- | ------------------------------------------------- |
+| Creation attempts per key               | 10 in any rolling hour                            |
+| Reads per key                           | 300 in any rolling hour                           |
+| Global creation attempts                | 20 in any rolling minute; 100 in any rolling hour |
+| All authenticated API requests          | 300 per fixed minute                              |
+| All API requests, before authentication | 600 per fixed minute                              |
+| JSON body                               | 16 KiB, read within 5 seconds                     |
+
+The 10/hour creation limit includes invalid authenticated requests and retries.
+Reads and creations have separate per-key allowances. Global limits protect
+against traffic spread across multiple keys. Shared database checks enforce
+quotas across concurrent requests and Worker instances.
+
+**A request exceeding any throttle permanently revokes the identifiable API key.**
+The triggering response is `429`, with `Retry-After` and
+`X-API-Key-Revoked: true`. Later requests return `401`, including after the rate
+window resets. Do not automatically retry a revoked key: the owner must create a
+replacement. Global traffic pressure can also trigger revocation, even when a
+key has not exhausted its individual allowance. Unknown/invalid credentials
+cannot revoke another key.
+
+Other errors return `{ error }`: `400` invalid input, `401` missing/expired/revoked
+key, `404` unknown endpoint, `405` unsupported method, `408` body timeout, `409`
+idempotency conflict, `413` oversized body, `415` unsupported content type, and
+`503` unavailable storage. Authentication and throttling fail closed. Reuse the
+same idempotency identifier after an uncertain creation outcome; do not expose
+credentials in error logs.
+
+### Owner alerts
+
+Five successful creations within 60 seconds, or an authenticated throttle
+violation, create a persistent owner-only alert. Repeated activity is grouped
+into 15-minute incident windows. Alerts show key labels, resource types, creation
+counts, and blocked-request counts without credentials or request bodies.
+Throttled keys are automatically revoked; you can also revoke a key from an alert.
+Acknowledging an incident clears its unread state; new activity makes it unread
+again. The owner dashboard refreshes every 30 seconds while visible.
+
+Alerts stay for 30 days and appear when you open the owner dashboard. **No email,
+push, or notification while the site is closed is sent.** The view shows up to
+100 incidents, unread first, and up to 500 recent keys, active first. Temporary
+rate records last at most an hour, retry records last 24 hours, and inactive key
+metadata is removed 30 days after revocation or expiration. Cleanup runs on
+admitted authenticated API requests and owner-management requests.
+
+Migrations `0004_external_api.sql` and `0005_external_api_reads.sql` only add
+security tables; they do not change existing players or games. Apply these to
+existing local state before previewing. Sites applies them during an explicitly
+authorized deployment. The feature is not live until that deployment.
+
+For the optional local HTTP integration check, run
+`node --test tests/external-api-http.test.mjs` from `web/` while the development
+server is running. It creates and revokes a local test key, verifies real D1
+rollback and alert behavior, and leaves existing players/games unchanged.
+`TICHU_TEST_URL` may select another loopback port; non-local URLs are refused.
+The browser suite also covers the owner controls at mobile/desktop widths and
+API-key rejection by existing admin mutation routes. Production gateway header
+sanitization remains a separate post-deployment check.
