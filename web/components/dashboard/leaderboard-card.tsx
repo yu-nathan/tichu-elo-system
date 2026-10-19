@@ -166,7 +166,7 @@ const Rank = ({ index }: { index: number }) => (
   <span
     className={
       index < 3
-        ? "font-mono text-seasonal-rank"
+        ? "font-mono text-leaderboard-rank"
         : "font-mono text-muted-foreground"
     }
   >

@@ -14,6 +14,7 @@
   );
   --color-seasonal-tint: var(--seasonal-tint);
   --color-seasonal-rank: var(--seasonal-rank);
+  --color-leaderboard-rank: var(--leaderboard-rank);
   --color-seasonal-badge: var(--seasonal-badge);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -62,6 +63,7 @@ body {
 }
 
 :root {
+  --leaderboard-rank: var(--color-amber-300);
   --seasonal-rating: var(--color-emerald-200);
   --seasonal-brand: var(--color-emerald-300);
   --seasonal-tint: var(--color-emerald-400);
@@ -103,6 +105,7 @@ body {
 
 /* Every seasonal color lives here; components consume semantic tokens. */
 :root[data-season="halloween"] {
+  --leaderboard-rank: #ffc17a;
   --background: #160f23;
   --foreground: #f5effb;
   --card: #251b33;
@@ -127,6 +130,7 @@ body {
 }
 
 :root[data-season="thanksgiving"] {
+  --leaderboard-rank: #ffdf80;
   --background: #211811;
   --foreground: #fff3e2;
   --card: #302319;
@@ -151,6 +155,7 @@ body {
 }
 
 :root[data-season="christmas"] {
+  --leaderboard-rank: #ffadbc;
   --background: #0c211d;
   --foreground: #fffafa;
   --seasonal-text: var(--foreground);
@@ -205,6 +210,7 @@ body {
 
 /* Keep holiday artwork while making interface emphasis blue/amber and legible. */
 :root[data-season][data-colorblind="true"] {
+  --leaderboard-rank: var(--accent);
   --foreground: #ffffff;
   --card-foreground: var(--foreground);
   --popover-foreground: var(--foreground);
