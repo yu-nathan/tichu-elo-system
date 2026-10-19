@@ -52,7 +52,7 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
     <Card className="min-h-0 gap-3 py-3 border-seasonal-tint/15 bg-gradient-to-br from-seasonal-tint/10 to-card">
       <CardHeader className="shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge className="bg-seasonal-brand text-primary-foreground">
+          <Badge className="bg-seasonal-brand text-seasonal-brand-foreground">
             Matchmaker
           </Badge>
           {displayedMatch ? (

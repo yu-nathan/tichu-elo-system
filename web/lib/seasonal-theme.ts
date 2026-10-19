@@ -17,6 +17,7 @@ export const THEME_LABELS: Record<SeasonalTheme, string> = {
 
 export const THEME_PREFERENCE_KEY = "tichu-elo:theme:v1";
 export const ANIMATION_PREFERENCE_KEY = "tichu-elo:seasonal-motion:v1";
+export const COLOR_BLIND_PREFERENCE_KEY = "tichu-elo:color-blind:v1";
 
 export const parseThemePreview = (value: string | null): SeasonalTheme | null =>
   SEASONAL_THEMES.find((theme) => theme === value) ?? null;

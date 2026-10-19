@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Palette, Pause, Play } from "lucide-react";
+import { Check, Contrast, Eye, Palette, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -70,6 +70,16 @@ export const ThemeControls = ({
           {season.motionEnabled && !season.reducedMotion ? <Pause /> : <Play />}
         </Button>
       ) : null}
+      <Button
+        size="sm"
+        variant={season.colorBlindMode ? "secondary" : "outline"}
+        aria-pressed={season.colorBlindMode}
+        onClick={season.toggleColorBlindMode}
+        title="Use blue and amber interface accents with higher-contrast text"
+      >
+        {season.colorBlindMode ? <Check /> : <Contrast />}
+        Color-blind mode
+      </Button>
       <Button
         size="sm"
         variant="outline"

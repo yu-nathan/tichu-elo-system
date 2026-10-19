@@ -8,6 +8,10 @@
   --color-background: var(--background);
   --color-seasonal-rating: var(--seasonal-rating);
   --color-seasonal-brand: var(--seasonal-brand);
+  --color-seasonal-brand-foreground: var(
+    --seasonal-brand-foreground,
+    var(--primary-foreground)
+  );
   --color-seasonal-tint: var(--seasonal-tint);
   --color-seasonal-rank: var(--seasonal-rank);
   --color-seasonal-badge: var(--seasonal-badge);
@@ -148,25 +152,27 @@ body {
 
 :root[data-season="christmas"] {
   --background: #0c211d;
-  --foreground: #edf7ef;
+  --foreground: #fffafa;
+  --seasonal-text: var(--foreground);
+  --seasonal-brand-foreground: #7a1730;
   --card: #142e28;
   --secondary: #25443a;
   --muted: #203a32;
-  --muted-foreground: #adc8bb;
-  --primary: #a6dfba;
-  --primary-foreground: #102c20;
-  --accent: #f3d48b;
-  --accent-foreground: #30240d;
-  --border: #5b887380;
-  --input: #618c7980;
+  --muted-foreground: #c1d4ca;
+  --primary: #c52c49;
+  --primary-foreground: #ffffff;
+  --accent: #fff8f5;
+  --accent-foreground: #7a1730;
+  --border: #f6e8ec4d;
+  --input: #f6e8ec66;
   --seasonal-glow: #42986d;
   --seasonal-glow-secondary: #bd5267;
-  --decoration-warm: #e2b96c;
-  --decoration-light: #ffe2a0;
-  --decoration-cream: #e6f4ed;
+  --decoration-warm: #df3554;
+  --decoration-light: #ffffff;
+  --decoration-cream: #ffffff;
   --decoration-green: #3c936d;
   --decoration-earth: #99714a;
-  --decoration-berry: #e88b9d;
+  --decoration-berry: #ef3856;
   --decoration-ink: #09281e;
 }
 
@@ -176,8 +182,8 @@ body {
   --popover-foreground: var(--foreground);
   --secondary-foreground: var(--foreground);
   --ring: var(--primary);
-  --seasonal-rating: var(--primary);
-  --seasonal-brand: var(--primary);
+  --seasonal-rating: var(--seasonal-text, var(--primary));
+  --seasonal-brand: var(--seasonal-text, var(--primary));
   --seasonal-tint: var(--primary);
   --seasonal-rank: var(--accent);
   --seasonal-badge: var(--accent);
@@ -195,6 +201,28 @@ body {
       color-mix(in srgb, var(--seasonal-glow-secondary) 17%, transparent),
       transparent 55%
     );
+}
+
+/* Keep holiday artwork while making interface emphasis blue/amber and legible. */
+:root[data-season][data-colorblind="true"] {
+  --foreground: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover-foreground: var(--foreground);
+  --secondary-foreground: var(--foreground);
+  --muted-foreground: #e1e6eb;
+  --primary: #9bd9ff;
+  --primary-foreground: #102538;
+  --accent: #ffd580;
+  --accent-foreground: #2c1c00;
+  --ring: var(--primary);
+  --border: #a9bfd1;
+  --input: var(--border);
+  --seasonal-rating: var(--primary);
+  --seasonal-brand: var(--primary);
+  --seasonal-brand-foreground: var(--primary-foreground);
+  --seasonal-tint: var(--primary);
+  --seasonal-rank: var(--accent);
+  --seasonal-badge: var(--accent);
 }
 
 .seasonal-scene {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   ANIMATION_PREFERENCE_KEY,
+  COLOR_BLIND_PREFERENCE_KEY,
   millisecondsUntilLocalMidnight,
   parseThemePreview,
   resolveSeasonalTheme,
@@ -25,6 +26,7 @@ export const useSeasonalTheme = () => {
   const [preference, setPreference] = useState<ThemePreference>("automatic");
   const [preview, setPreview] = useState<SeasonalTheme | null>(null);
   const [motionEnabled, setMotionEnabled] = useState(true);
+  const [colorBlindMode, setColorBlindMode] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [visible, setVisible] = useState(true);
   const theme = resolveSeasonalTheme(automatic, preference, preview);
@@ -52,6 +54,9 @@ export const useSeasonalTheme = () => {
         setMotionEnabled(
           localStorage.getItem(ANIMATION_PREFERENCE_KEY) !== "paused",
         );
+        setColorBlindMode(
+          localStorage.getItem(COLOR_BLIND_PREFERENCE_KEY) === "enabled",
+        );
       } catch {
         // Keep the current in-memory preferences.
       }
@@ -60,7 +65,8 @@ export const useSeasonalTheme = () => {
       if (
         event.key === null ||
         event.key === THEME_PREFERENCE_KEY ||
-        event.key === ANIMATION_PREFERENCE_KEY
+        event.key === ANIMATION_PREFERENCE_KEY ||
+        event.key === COLOR_BLIND_PREFERENCE_KEY
       )
         readPreferences();
     };
@@ -95,6 +101,16 @@ export const useSeasonalTheme = () => {
     };
   }, [theme]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.getAttribute("data-colorblind");
+    root.setAttribute("data-colorblind", String(colorBlindMode));
+    return () => {
+      if (previous === null) root.removeAttribute("data-colorblind");
+      else root.setAttribute("data-colorblind", previous);
+    };
+  }, [colorBlindMode]);
+
   const selectPreview = (next: SeasonalTheme | null) => {
     const url = new URL(location.href);
     if (next === null) url.searchParams.delete("theme");
@@ -116,15 +132,23 @@ export const useSeasonalTheme = () => {
     savePreference(ANIMATION_PREFERENCE_KEY, next ? "playing" : "paused");
   };
 
+  const toggleColorBlindMode = () => {
+    const next = !colorBlindMode;
+    setColorBlindMode(next);
+    savePreference(COLOR_BLIND_PREFERENCE_KEY, next ? "enabled" : "disabled");
+  };
+
   return {
     theme,
     preference,
     preview,
     motionEnabled,
+    colorBlindMode,
     reducedMotion,
     paused: !motionEnabled || reducedMotion || !visible,
     selectPreview,
     selectPreference,
     toggleMotion,
+    toggleColorBlindMode,
   };
 };

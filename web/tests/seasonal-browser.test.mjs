@@ -43,6 +43,67 @@ const expectTheme = async (page, theme) => {
   await expect(page.locator("html")).toHaveAttribute("data-season", theme);
 };
 
+test("color-blind mode persists across themes and pages without changing theme preferences", async (context) => {
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 390, height: 844 },
+  ]) {
+    const { page, errors } = await openSession(context, { viewport });
+    await page.goto("/?theme=christmas");
+    await expectTheme(page, "christmas");
+    const toggle = page.getByRole("button", {
+      name: "Color-blind mode",
+      exact: true,
+    });
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    for (const theme of ["halloween", "thanksgiving", "christmas", "default"]) {
+      await page.goto(`/?theme=${theme}`);
+      await expectTheme(page, theme);
+      await expect(toggle).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("html")).toHaveCSS("--primary", "#9bd9ff");
+      assert.equal(
+        await page.evaluate(() => localStorage.getItem("tichu-elo:theme:v1")),
+        null,
+      );
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await page
+        .getByRole("button", { name: "Preview themes", exact: true })
+        .click();
+      await expect(page.getByRole("menu")).toHaveCSS("--primary", "#9bd9ff");
+      await page.keyboard.press("Escape");
+    }
+    await page.goto("/admin?theme=christmas");
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.click();
+    await expect(page.locator("html")).toHaveCSS("--primary", "#c52c49");
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    assert.equal(
+      await page.evaluate(() =>
+        localStorage.getItem("tichu-elo:color-blind:v1"),
+      ),
+      "disabled",
+    );
+    await page.evaluate(() => {
+      localStorage.setItem("tichu-elo:color-blind:v1", "enabled");
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "tichu-elo:color-blind:v1",
+          newValue: "enabled",
+        }),
+      );
+    });
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    assert.deepEqual(errors, []);
+  }
+});
+
 test("owner previews every theme from either header without changing preferences", async (context) => {
   for (const viewport of [
     { width: 1440, height: 1000 },
@@ -481,7 +542,7 @@ test("animation preferences persist and reduced motion overrides playback", asyn
   assert.deepEqual(errors, []);
 });
 
-test("unavailable storage leaves theme and animation controls usable", async (context) => {
+test("unavailable storage leaves theme, color-blind, and animation controls usable", async (context) => {
   const { page, errors } = await openSession(context);
   await page.addInitScript(() => {
     Storage.prototype.getItem = () => {
@@ -506,6 +567,15 @@ test("unavailable storage leaves theme and animation controls usable", async (co
     "data-paused",
     "true",
   );
+  const colorBlind = page.getByRole("button", {
+    name: "Color-blind mode",
+    exact: true,
+  });
+  await colorBlind.click();
+  await expect(colorBlind).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("html")).toHaveCSS("--primary", "#9bd9ff");
+  await colorBlind.click();
+  await expect(colorBlind).toHaveAttribute("aria-pressed", "false");
   assert.deepEqual(errors, []);
 });
 
