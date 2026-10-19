@@ -1,4 +1,5 @@
 import { useId, type CSSProperties } from "react";
+import { useDecodedImage } from "@/hooks/use-decoded-image";
 import artCrops from "@/lib/seasonal-art-crops.json";
 import type { SeasonalTheme } from "@/lib/seasonal-theme";
 
@@ -14,11 +15,18 @@ export const SeasonalArt = ({
   const clipId = useId();
   const crop = artCrops[theme][variant];
   const standaloneTurkey = theme === "thanksgiving" && variant === 0;
+  const source = standaloneTurkey
+    ? "/seasonal/thanksgiving-turkey.png"
+    : `/seasonal/${theme}-atlas.png`;
+  const ready = useDecodedImage(source);
   return (
     <svg
+      key={source}
       aria-hidden="true"
       focusable="false"
       data-art-variant={variant}
+      data-art-ready={ready}
+      style={{ opacity: ready ? 1 : 0 }}
       className="seasonal-art"
       viewBox={standaloneTurkey ? "0 0 1024 1024" : crop.viewBox}
     >
@@ -28,11 +36,7 @@ export const SeasonalArt = ({
         </clipPath>
       </defs>
       <image
-        href={
-          standaloneTurkey
-            ? "/seasonal/thanksgiving-turkey.png"
-            : `/seasonal/${theme}-atlas.png`
-        }
+        href={source}
         width={standaloneTurkey ? 1024 : 1254}
         height={standaloneTurkey ? 1024 : 1254}
         clipPath={standaloneTurkey ? undefined : `url(#${clipId})`}

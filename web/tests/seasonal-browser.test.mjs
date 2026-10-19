@@ -39,15 +39,324 @@ const openSession = async (context, options = {}) => {
   return { page, errors };
 };
 
-const expectTheme = async (page, theme) => {
+const expectTheme = async (page, theme, hydrated = true) => {
+  if (hydrated)
+    await expect(page.locator(".seasonal-site")).toHaveAttribute(
+      "data-theme-ready",
+      "true",
+    );
   await expect(page.locator("html")).toHaveAttribute("data-season", theme);
 };
 
-test("color-blind mode persists across themes and pages without changing theme preferences", async (context) => {
-  for (const viewport of [
-    { width: 1440, height: 1000 },
-    { width: 390, height: 844 },
+test("mobile selects its palette before app scripts load and preserves it through hydration", async (context) => {
+  for (const scenario of [
+    { theme: "halloween" },
+    { preference: "default", theme: "default" },
+    {
+      preference: "default",
+      preview: "christmas",
+      theme: "christmas",
+      colorBlind: true,
+    },
+    { preview: "invalid", blockedStorage: true, theme: "halloween" },
+    { date: "2026-11-26T20:00:00Z", theme: "thanksgiving" },
+    { date: "2026-11-27T20:00:00Z", theme: "christmas" },
+    { date: "2027-01-01T20:00:00Z", theme: "default" },
+    { date: "2026-10-01T01:00:00Z", theme: "default" },
   ]) {
+    const { page, errors } = await openSession(context, {
+      viewport: { width: 390, height: 844 },
+    });
+    if (scenario.date) await page.clock.setFixedTime(new Date(scenario.date));
+    await page.addInitScript((scenario) => {
+      if (scenario.preference)
+        localStorage.setItem("tichu-elo:theme:v1", scenario.preference);
+      if (scenario.colorBlind)
+        localStorage.setItem("tichu-elo:color-blind:v1", "enabled");
+      if (scenario.blockedStorage)
+        Object.defineProperty(window, "localStorage", {
+          get: () => {
+            throw new Error("Storage unavailable");
+          },
+        });
+    }, scenario);
+    let release;
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/*", async (route) => {
+      if (route.request().resourceType() === "script") await pending;
+      await route.continue();
+    });
+    await page.goto(scenario.preview ? `/?theme=${scenario.preview}` : "/", {
+      waitUntil: "commit",
+    });
+    try {
+      // Only the parser-blocking inline head script can have run here.
+      await expectTheme(page, scenario.theme, false);
+      await expect(page.locator(".seasonal-site")).toHaveAttribute(
+        "data-theme-ready",
+        "false",
+      );
+      await expect(page.locator("html")).toHaveAttribute(
+        "data-colorblind",
+        String(Boolean(scenario.colorBlind)),
+      );
+      await expect(page.getByText("Tichu Elo", { exact: true })).toBeVisible();
+      await page.evaluate(() => {
+        window.observedSeasons = [];
+        new MutationObserver(() => {
+          window.observedSeasons.push(document.documentElement.dataset.season);
+        }).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-season"],
+        });
+      });
+    } finally {
+      release();
+    }
+    await page.waitForLoadState("load");
+    await expectTheme(page, scenario.theme);
+    // A functioning toggle confirms hydration has completed.
+    await page.getByRole("button", { name: "Appearance", exact: true }).click();
+    await page
+      .getByRole("menuitemcheckbox", { name: "Color-blind mode", exact: true })
+      .click();
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-colorblind",
+      String(!scenario.colorBlind),
+    );
+    assert.ok(
+      (await page.evaluate(() => window.observedSeasons)).every(
+        (theme) => theme === scenario.theme,
+      ),
+    );
+    assert.deepEqual(errors, []);
+  }
+});
+
+test("mobile appearance menu keeps Manage separate and supports every theme control", async (context) => {
+  for (const width of [320, 390]) {
+    const { page, errors } = await openSession(context, {
+      viewport: { width, height: 844 },
+    });
+    const appearance = page.getByRole("button", {
+      name: "Appearance",
+      exact: true,
+    });
+    const openMenu = async () => {
+      if ((await appearance.getAttribute("aria-expanded")) !== "true")
+        await appearance.click();
+      await expect(page.getByRole("menu")).toBeVisible();
+    };
+    const closeMenu = async () => {
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("menu")).toHaveCount(0);
+    };
+    const choose = async (name, role = "menuitem") => {
+      await openMenu();
+      await page.getByRole(role, { name, exact: true }).click();
+      await closeMenu();
+    };
+    for (const path of ["/", "/admin"]) {
+      await page.goto(path);
+      await expectTheme(page, "halloween");
+      const navigation = page.getByRole("button", {
+        name: path === "/" ? "Manage" : "Leaderboard",
+        exact: true,
+      });
+      await expect(navigation).toBeVisible();
+      await expect(appearance).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Color-blind mode", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Use default theme", exact: true }),
+      ).toHaveCount(0);
+      const navBox = await navigation.boundingBox();
+      const menuBox = await appearance.boundingBox();
+      assert.ok(
+        navBox.x + navBox.width <= menuBox.x,
+        "Manage stays separate from Appearance",
+      );
+      await openMenu();
+      const popup = await page.getByRole("menu").boundingBox();
+      assert.ok(popup.x >= 0 && popup.x + popup.width <= width);
+      for (const item of await page.getByRole("menuitem").all()) {
+        await expect(item).toHaveCSS("min-height", "44px");
+      }
+      await closeMenu();
+      await expect(appearance).toBeFocused();
+      await choose("Color-blind mode", "menuitemcheckbox");
+      await expect(page.locator("html")).toHaveAttribute(
+        "data-colorblind",
+        "true",
+      );
+      await page.reload();
+      await expectTheme(page, "halloween");
+      await openMenu();
+      await expect(
+        page.getByRole("menuitemcheckbox", { name: "Color-blind mode" }),
+      ).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByRole("menu")).toHaveCSS("--primary", "#9bd9ff");
+      await choose("Color-blind mode", "menuitemcheckbox");
+      await choose("Pause seasonal animations");
+      await expect(page.locator(".seasonal-scene")).toHaveAttribute(
+        "data-paused",
+        "true",
+      );
+      await choose("Play seasonal animations");
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openMenu();
+      await expect(
+        page.getByRole("menuitem", {
+          name: "Animations off: reduced motion enabled",
+        }),
+      ).toHaveAttribute("aria-disabled", "true");
+      await closeMenu();
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      if (path === "/admin") await page.getByLabel("Team A score").fill("750");
+      await choose("Use default theme");
+      await expectTheme(page, "default");
+      if (path === "/admin")
+        await expect(page.getByLabel("Team A score")).toHaveValue("750");
+      await page.reload();
+      await expectTheme(page, "default");
+      for (const [theme, label] of [
+        ["halloween", "Halloween"],
+        ["thanksgiving", "Thanksgiving"],
+        ["christmas", "Christmas"],
+        ["default", "Original"],
+      ]) {
+        await choose(label);
+        await expectTheme(page, theme);
+        assert.equal(
+          await page.evaluate(() => localStorage.getItem("tichu-elo:theme:v1")),
+          "default",
+        );
+      }
+      await choose("Return to automatic");
+      await expectTheme(page, "halloween");
+      await choose("Use default theme");
+      await choose("Use seasonal theme");
+      await expectTheme(page, "halloween");
+      if (process.env.TICHU_PREVIEW_DIR && path === "/" && width === 390) {
+        await mkdir(process.env.TICHU_PREVIEW_DIR, { recursive: true });
+        await page.screenshot({
+          path: join(
+            process.env.TICHU_PREVIEW_DIR,
+            "mobile-compact-header.png",
+          ),
+        });
+        await openMenu();
+        await page.screenshot({
+          path: join(
+            process.env.TICHU_PREVIEW_DIR,
+            "mobile-appearance-menu.png",
+          ),
+        });
+        await closeMenu();
+      }
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+    }
+    assert.deepEqual(errors, []);
+  }
+});
+
+test("artwork stays transparent until decoded and reveals without shifting the header", async (context) => {
+  const { page, errors } = await openSession(context);
+  await page.addInitScript(() => {
+    const NativeImage = window.Image;
+    const pending = new Promise((resolve) => {
+      window.releaseArtDecode = resolve;
+    });
+    window.Image = class extends NativeImage {
+      decode = async () => {
+        await super.decode();
+        await pending;
+      };
+    };
+  });
+  for (const theme of ["halloween", "thanksgiving", "christmas"]) {
+    for (const cached of [false, true]) {
+      if (cached) await page.reload();
+      else await page.goto(`/?theme=${theme}`);
+      await expectTheme(page, theme);
+      const art = page.locator(".seasonal-art");
+      await expect(art).toHaveCount(4);
+      for (const item of await art.all()) {
+        await expect(item).toHaveAttribute("data-art-ready", "false");
+        await expect(item).toHaveCSS("opacity", "0");
+      }
+      const header = page.locator('[data-slot="card-header"]').first();
+      const before = await header.boundingBox();
+      await page.evaluate(() => window.releaseArtDecode());
+      for (const item of await art.all()) {
+        await expect(item).toHaveAttribute("data-art-ready", "true");
+        await expect(item).toHaveCSS("opacity", "1");
+      }
+      assert.deepEqual(await header.boundingBox(), before);
+      await page
+        .getByRole("button", { name: "Color-blind mode", exact: true })
+        .click();
+      await expect(art.first()).toHaveCSS("opacity", "1");
+    }
+  }
+  assert.deepEqual(errors, []);
+});
+
+test("late or failed artwork never flashes into a different theme", async (context) => {
+  const { page, errors } = await openSession(context, {
+    reducedMotion: "reduce",
+  });
+  let release;
+  const pending = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/seasonal/christmas-atlas.png", async (route) => {
+    await pending;
+    await route.continue();
+  });
+  await page.goto("/?theme=christmas", { waitUntil: "domcontentloaded" });
+  await expect(
+    page.locator('.seasonal-art[data-art-ready="false"]'),
+  ).toHaveCount(4);
+  await page
+    .getByRole("button", { name: "Use default theme", exact: true })
+    .click();
+  release();
+  await expectTheme(page, "default");
+  await expect(page.locator(".seasonal-art")).toHaveCount(0);
+  await page.goto("/?theme=christmas");
+  await expect(
+    page.locator('.seasonal-art[data-art-ready="true"]'),
+  ).toHaveCount(4);
+  await expect(page.locator(".seasonal-art").first()).toHaveCSS(
+    "transition-duration",
+    "0s",
+  );
+  await page.route("**/seasonal/thanksgiving*.png", (route) => route.abort());
+  await page.goto("/?theme=thanksgiving");
+  await expectTheme(page, "thanksgiving");
+  await expect(
+    page.locator('.seasonal-art[data-art-ready="false"]'),
+  ).toHaveCount(4);
+  await expect(
+    page.getByRole("region", { name: "Leaderboard players" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Use default theme", exact: true })
+    .click();
+  await expectTheme(page, "default");
+  assert.deepEqual(errors, []);
+});
+
+test("color-blind mode persists across themes and pages without changing theme preferences", async (context) => {
+  for (const viewport of [{ width: 1440, height: 1000 }]) {
     const { page, errors } = await openSession(context, { viewport });
     await page.goto("/?theme=christmas");
     await expectTheme(page, "christmas");
@@ -105,10 +414,7 @@ test("color-blind mode persists across themes and pages without changing theme p
 });
 
 test("owner previews every theme from either header without changing preferences", async (context) => {
-  for (const viewport of [
-    { width: 1440, height: 1000 },
-    { width: 390, height: 844 },
-  ]) {
+  for (const viewport of [{ width: 1440, height: 1000 }]) {
     const { page, errors } = await openSession(context, { viewport });
     await page.goto("/");
     await expectTheme(page, "halloween");
@@ -221,7 +527,10 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
         page.getByText("Leaderboard", { exact: true }).last(),
       ).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "Use default theme", exact: true }),
+        page.getByRole("button", {
+          name: device === "mobile" ? "Appearance" : "Use default theme",
+          exact: true,
+        }),
       ).toBeVisible();
       assert.equal(
         await page
@@ -379,10 +688,7 @@ test("default preference persists and previews remain temporary until explicitly
 });
 
 test("site-wide themes share controls, previews, and preferences with the admin console", async (context) => {
-  for (const viewport of [
-    { width: 1440, height: 1000 },
-    { width: 390, height: 844 },
-  ]) {
+  for (const viewport of [{ width: 1440, height: 1000 }]) {
     const { page, errors } = await openSession(context, { viewport });
     for (const theme of ["halloween", "thanksgiving", "christmas"]) {
       await page.goto(`/?theme=${theme}`);

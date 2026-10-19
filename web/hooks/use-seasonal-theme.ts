@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   ANIMATION_PREFERENCE_KEY,
   COLOR_BLIND_PREFERENCE_KEY,
@@ -22,6 +22,7 @@ const savePreference = (key: string, value: string) => {
 };
 
 export const useSeasonalTheme = () => {
+  const [initialized, setInitialized] = useState(false);
   const [automatic, setAutomatic] = useState<SeasonalTheme>("default");
   const [preference, setPreference] = useState<ThemePreference>("automatic");
   const [preview, setPreview] = useState<SeasonalTheme | null>(null);
@@ -31,7 +32,7 @@ export const useSeasonalTheme = () => {
   const [visible, setVisible] = useState(true);
   const theme = resolveSeasonalTheme(automatic, preference, preview);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const refresh = () => {
       clearTimeout(timer);
@@ -76,6 +77,7 @@ export const useSeasonalTheme = () => {
     readPreview();
     readMotion();
     refresh();
+    setInitialized(true);
     media.addEventListener("change", readMotion);
     window.addEventListener("storage", onStorage);
     window.addEventListener("popstate", readPreview);
@@ -91,7 +93,8 @@ export const useSeasonalTheme = () => {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!initialized) return;
     const root = document.documentElement;
     const previous = root.getAttribute("data-season");
     root.setAttribute("data-season", theme);
@@ -99,9 +102,10 @@ export const useSeasonalTheme = () => {
       if (previous === null) root.removeAttribute("data-season");
       else root.setAttribute("data-season", previous);
     };
-  }, [theme]);
+  }, [initialized, theme]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!initialized) return;
     const root = document.documentElement;
     const previous = root.getAttribute("data-colorblind");
     root.setAttribute("data-colorblind", String(colorBlindMode));
@@ -109,7 +113,7 @@ export const useSeasonalTheme = () => {
       if (previous === null) root.removeAttribute("data-colorblind");
       else root.setAttribute("data-colorblind", previous);
     };
-  }, [colorBlindMode]);
+  }, [initialized, colorBlindMode]);
 
   const selectPreview = (next: SeasonalTheme | null) => {
     const url = new URL(location.href);
@@ -139,6 +143,7 @@ export const useSeasonalTheme = () => {
   };
 
   return {
+    initialized,
     theme,
     preference,
     preview,

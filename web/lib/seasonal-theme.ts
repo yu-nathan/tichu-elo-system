@@ -27,16 +27,24 @@ export const thanksgivingDay = (year: number): number => {
   return 1 + ((4 - firstWeekday + 7) % 7) + 21;
 };
 
-// Intentionally use local calendar fields: the visitor's date owns the season.
-export const seasonalThemeForDate = (date: Date): SeasonalTheme => {
-  const month = date.getMonth();
+// Pure calendar resolver is also embedded in the pre-paint browser bootstrap.
+export const seasonalThemeForCalendar = (
+  month: number,
+  day: number,
+  thanksgiving: number,
+): SeasonalTheme => {
   if (month === 9) return "halloween";
-  if (month === 10)
-    return date.getDate() <= thanksgivingDay(date.getFullYear())
-      ? "thanksgiving"
-      : "christmas";
+  if (month === 10) return day <= thanksgiving ? "thanksgiving" : "christmas";
   return month === 11 ? "christmas" : "default";
 };
+
+// Intentionally use local calendar fields: the visitor's date owns the season.
+export const seasonalThemeForDate = (date: Date): SeasonalTheme =>
+  seasonalThemeForCalendar(
+    date.getMonth(),
+    date.getDate(),
+    thanksgivingDay(date.getFullYear()),
+  );
 
 export const millisecondsUntilLocalMidnight = (date: Date): number => {
   const midnight = new Date(date);

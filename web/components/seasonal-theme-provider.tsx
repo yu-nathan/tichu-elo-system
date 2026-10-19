@@ -27,6 +27,7 @@ export const SeasonalThemeProvider = ({
     <SeasonalThemeContext.Provider value={season}>
       <div
         className="seasonal-site relative isolate min-h-dvh bg-background text-foreground"
+        data-theme-ready={season.initialized}
         data-seasonal-paused={season.paused}
       >
         <div className="pointer-events-none fixed inset-0" aria-hidden="true">

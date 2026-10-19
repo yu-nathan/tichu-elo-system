@@ -286,8 +286,13 @@ body {
 .seasonal-art {
   display: block;
   aspect-ratio: 1;
+  transition: opacity 240ms ease-out;
   animation: seasonal-float var(--art-duration, 7s) var(--art-delay, 0s)
     ease-in-out infinite alternate;
+}
+
+.seasonal-art[data-art-ready="false"] {
+  transition: none;
 }
 
 .seasonal-corner .seasonal-art {
@@ -454,6 +459,7 @@ body {
   .seasonal-scene *,
   .seasonal-art {
     animation: none !important;
+    transition: none !important;
   }
 }
 
