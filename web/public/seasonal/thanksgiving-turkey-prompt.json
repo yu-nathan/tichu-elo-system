@@ -1,0 +1,7 @@
+{
+  "generator": "Built-in image_gen",
+  "transparentBackground": true,
+  "reference": "thanksgiving-atlas.png",
+  "asset": "thanksgiving-turkey.png",
+  "prompt": "Use the attached Thanksgiving illustration sheet as a style reference and its top-left turkey as the subject to redesign. Generate ONLY ONE isolated full-body turkey on a genuinely transparent background, no other subjects. Keep the existing rich finely detailed hand-painted storybook illustration style, crisp layered feather detail, copper/russet/brown and warm gold palette, subtle dimensional highlights, fanned tail and upright three-quarter pose facing right. Make the bird less cartoony with anatomically natural turkey proportions, a smaller realistic dark eye (no oversized blue cartoon eye), natural head and neck, detailed red wattle, and a CLOSED natural beak. Neutral calm animal expression: absolutely no smile, no grin, no human expression, no eyebrows, no exaggerated cheek shapes. Still illustrated rather than photographic; match the reference's elegant detailed rendering and warm lighting. Entire tail, head and feet visible, centered within a square canvas with 7 percent transparent padding on every side. No ground shadow, no background, no frame, no lettering. Do not include the cornucopia, pie, leaves or pumpkins."
+}

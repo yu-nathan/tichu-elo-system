@@ -5,6 +5,7 @@ import {
 } from "@/app/chatgpt-auth";
 import { Dashboard } from "@/components/dashboard";
 import { getAdmin } from "@/lib/admin";
+import { isOwner } from "@/lib/admin-access";
 import { getDashboardData } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ const Home = async () => {
       data={data}
       userEmail={user?.email ?? null}
       isAdmin={Boolean(admin)}
+      canPreviewThemes={Boolean(user && isOwner(user.email))}
       signInHref={chatGPTSignInPath("/admin")}
       signOutHref={chatGPTSignOutPath("/")}
     />

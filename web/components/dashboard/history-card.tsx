@@ -25,7 +25,7 @@ export const HistoryCard = ({
           <div>
             <Badge
               variant="outline"
-              className="border-amber-300/30 text-amber-200"
+              className="border-seasonal-rank/30 text-seasonal-badge"
             >
               History
             </Badge>
@@ -62,7 +62,7 @@ export const HistoryCard = ({
                 <p
                   className={
                     teamAWon
-                      ? "truncate font-medium text-emerald-200"
+                      ? "truncate font-medium text-seasonal-rating"
                       : "truncate text-muted-foreground"
                   }
                 >
@@ -71,7 +71,7 @@ export const HistoryCard = ({
                 <p
                   className={
                     !teamAWon
-                      ? "truncate font-medium text-emerald-200"
+                      ? "truncate font-medium text-seasonal-rating"
                       : "truncate text-muted-foreground"
                   }
                 >
@@ -82,7 +82,7 @@ export const HistoryCard = ({
                 <p
                   className={
                     teamAWon
-                      ? "font-semibold text-emerald-200"
+                      ? "font-semibold text-seasonal-rating"
                       : "text-muted-foreground"
                   }
                 >
@@ -91,7 +91,7 @@ export const HistoryCard = ({
                 <p
                   className={
                     !teamAWon
-                      ? "font-semibold text-emerald-200"
+                      ? "font-semibold text-seasonal-rating"
                       : "text-muted-foreground"
                   }
                 >
@@ -102,7 +102,7 @@ export const HistoryCard = ({
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Diff
                 </p>
-                <p className="font-mono text-xs text-amber-300">
+                <p className="font-mono text-xs text-seasonal-rank">
                   +{differential}
                 </p>
               </div>

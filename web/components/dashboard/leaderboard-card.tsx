@@ -1,5 +1,6 @@
 "use client";
 
+import { THEME_LABELS, type SeasonalTheme } from "@/lib/seasonal-theme";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +10,16 @@ import { formatRatio } from "@/lib/format";
 import type { RatingEntry } from "@/lib/elo";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { PlayerProfileLoader } from "@/components/dashboard/player-profile-loader";
+import { SeasonalArt } from "@/components/dashboard/seasonal-decorations";
 
 export const LeaderboardCard = ({
   active,
+  theme = "default",
   copied,
   onCopy,
 }: {
   active: RatingEntry[];
+  theme?: SeasonalTheme;
   copied: boolean;
   onCopy: () => void;
 }) => {
@@ -24,20 +28,32 @@ export const LeaderboardCard = ({
     <Dialog>
       <Card className="h-full min-h-0 border-white/8 bg-card/80 shadow-2xl shadow-black/20">
         <CardHeader className="shrink-0 border-b border-white/8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <Badge
-                variant="outline"
-                className="border-amber-300/30 text-amber-200"
+          <div className="flex items-start gap-3">
+            {theme !== "default" ? (
+              <div
+                className="seasonal-heading-art pointer-events-none w-32 shrink-0 sm:w-48"
+                aria-hidden="true"
               >
-                Standings
-              </Badge>
-              <CardTitle className="mt-3 text-xl">Leaderboard</CardTitle>
+                <SeasonalArt theme={theme} variant={0} />
+              </div>
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
+              <div>
+                <Badge
+                  variant="outline"
+                  className="border-seasonal-rank/30 text-seasonal-badge"
+                >
+                  {theme === "default"
+                    ? "Standings"
+                    : `${THEME_LABELS[theme]} standings`}
+                </Badge>
+                <CardTitle className="mt-3 text-xl">Leaderboard</CardTitle>
+              </div>
+              <Button variant="secondary" size="sm" onClick={onCopy}>
+                {copied ? <Check /> : <Copy />}{" "}
+                {copied ? "Copied" : "Copy for Discord"}
+              </Button>
             </div>
-            <Button variant="secondary" size="sm" onClick={onCopy}>
-              {copied ? <Check /> : <Copy />}{" "}
-              {copied ? "Copied" : "Copy for Discord"}
-            </Button>
           </div>
         </CardHeader>
         <CardContent
@@ -59,7 +75,7 @@ export const LeaderboardCard = ({
               <div className="hidden grid-cols-[2.5rem_minmax(0,1fr)_5rem_6rem_6rem_4rem] gap-3 items-center px-5 py-3.5 sm:grid">
                 <Rank index={index} />
                 <PlayerTrigger player={player} onSelect={setSelectedPlayerId} />
-                <span className="text-right font-mono text-emerald-200">
+                <span className="text-right font-mono text-seasonal-rating">
                   {player.rating.toFixed(1)}
                 </span>
                 <span className="text-right font-mono text-muted-foreground">
@@ -83,7 +99,7 @@ export const LeaderboardCard = ({
                       onSelect={setSelectedPlayerId}
                     />
                   </div>
-                  <span className="font-mono text-emerald-200">
+                  <span className="font-mono text-seasonal-rating">
                     {player.rating.toFixed(1)}
                   </span>
                 </div>
@@ -149,7 +165,9 @@ const SuccessRatio = ({
 const Rank = ({ index }: { index: number }) => (
   <span
     className={
-      index < 3 ? "font-mono text-amber-300" : "font-mono text-muted-foreground"
+      index < 3
+        ? "font-mono text-seasonal-rank"
+        : "font-mono text-muted-foreground"
     }
   >
     {String(index + 1).padStart(2, "0")}

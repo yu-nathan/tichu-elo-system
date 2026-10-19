@@ -49,10 +49,12 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
   };
 
   return (
-    <Card className="min-h-0 gap-3 py-3 border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 to-card">
+    <Card className="min-h-0 gap-3 py-3 border-seasonal-tint/15 bg-gradient-to-br from-seasonal-tint/10 to-card">
       <CardHeader className="shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge className="bg-emerald-300 text-emerald-950">Matchmaker</Badge>
+          <Badge className="bg-seasonal-brand text-primary-foreground">
+            Matchmaker
+          </Badge>
           {displayedMatch ? (
             <span className="text-xs font-medium text-primary">
               {randomMatch ? "Random matchup" : "Fairest matchup"}
@@ -177,7 +179,7 @@ const Team = ({
           <p className="text-xs text-muted-foreground">{label}</p>
           <p className="mt-1 font-medium">{names}</p>
         </div>
-        <span className="font-mono text-xs text-emerald-200">
+        <span className="font-mono text-xs text-seasonal-rating">
           {rating.toFixed(1)}
         </span>
       </div>

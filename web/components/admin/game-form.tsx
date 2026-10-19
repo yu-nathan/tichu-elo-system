@@ -104,7 +104,7 @@ export const GameForm = ({
               <input
                 aria-label="Record Tichu calls for this game"
                 type="checkbox"
-                className="size-4 accent-emerald-400"
+                className="size-4 accent-seasonal-tint"
                 checked={Boolean(draft.callStats)}
                 onChange={(event) =>
                   setDraft({

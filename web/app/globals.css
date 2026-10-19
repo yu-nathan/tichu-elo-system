@@ -6,6 +6,11 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-seasonal-rating: var(--seasonal-rating);
+  --color-seasonal-brand: var(--seasonal-brand);
+  --color-seasonal-tint: var(--seasonal-tint);
+  --color-seasonal-rank: var(--seasonal-rank);
+  --color-seasonal-badge: var(--seasonal-badge);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -53,6 +58,11 @@ body {
 }
 
 :root {
+  --seasonal-rating: var(--color-emerald-200);
+  --seasonal-brand: var(--color-emerald-300);
+  --seasonal-tint: var(--color-emerald-400);
+  --seasonal-rank: var(--color-amber-300);
+  --seasonal-badge: var(--color-amber-200);
   --background: oklch(0.145 0.025 250);
   --foreground: oklch(0.95 0.015 210);
   --card: oklch(0.19 0.026 247);
@@ -85,6 +95,332 @@ body {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+/* Every seasonal color lives here; components consume semantic tokens. */
+:root[data-season="halloween"] {
+  --background: #160f23;
+  --foreground: #f5effb;
+  --card: #251b33;
+  --secondary: #392943;
+  --muted: #30233d;
+  --muted-foreground: #c1afcf;
+  --primary: #ffb05c;
+  --primary-foreground: #301500;
+  --accent: #d6b7f7;
+  --accent-foreground: #28183b;
+  --border: #70518480;
+  --input: #76538b80;
+  --seasonal-glow: #904dcc;
+  --seasonal-glow-secondary: #ec872e;
+  --decoration-warm: #f49a3d;
+  --decoration-light: #ffe3a1;
+  --decoration-cream: #e6dbf3;
+  --decoration-green: #8bab68;
+  --decoration-earth: #896043;
+  --decoration-berry: #b75262;
+  --decoration-ink: #2a173b;
+}
+
+:root[data-season="thanksgiving"] {
+  --background: #211811;
+  --foreground: #fff3e2;
+  --card: #302319;
+  --secondary: #4a3525;
+  --muted: #3d2d21;
+  --muted-foreground: #cdb69c;
+  --primary: #efb76b;
+  --primary-foreground: #30200d;
+  --accent: #f0cf8b;
+  --accent-foreground: #38230b;
+  --border: #94704a80;
+  --input: #99754e80;
+  --seasonal-glow: #b76825;
+  --seasonal-glow-secondary: #dda54b;
+  --decoration-warm: #d5833e;
+  --decoration-light: #e9ba64;
+  --decoration-cream: #f3d8a1;
+  --decoration-green: #7f8a4d;
+  --decoration-earth: #815035;
+  --decoration-berry: #c7674e;
+  --decoration-ink: #38251a;
+}
+
+:root[data-season="christmas"] {
+  --background: #0c211d;
+  --foreground: #edf7ef;
+  --card: #142e28;
+  --secondary: #25443a;
+  --muted: #203a32;
+  --muted-foreground: #adc8bb;
+  --primary: #a6dfba;
+  --primary-foreground: #102c20;
+  --accent: #f3d48b;
+  --accent-foreground: #30240d;
+  --border: #5b887380;
+  --input: #618c7980;
+  --seasonal-glow: #42986d;
+  --seasonal-glow-secondary: #bd5267;
+  --decoration-warm: #e2b96c;
+  --decoration-light: #ffe2a0;
+  --decoration-cream: #e6f4ed;
+  --decoration-green: #3c936d;
+  --decoration-earth: #99714a;
+  --decoration-berry: #e88b9d;
+  --decoration-ink: #09281e;
+}
+
+:root[data-season]:not([data-season="default"]) {
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --secondary-foreground: var(--foreground);
+  --ring: var(--primary);
+  --seasonal-rating: var(--primary);
+  --seasonal-brand: var(--primary);
+  --seasonal-tint: var(--primary);
+  --seasonal-rank: var(--accent);
+  --seasonal-badge: var(--accent);
+}
+
+:root[data-season]:not([data-season="default"]) .seasonal-site {
+  background-image:
+    radial-gradient(
+      ellipse at 5% 0%,
+      color-mix(in srgb, var(--seasonal-glow) 25%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 95% 100%,
+      color-mix(in srgb, var(--seasonal-glow-secondary) 17%, transparent),
+      transparent 55%
+    );
+}
+
+.seasonal-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  contain: strict;
+}
+
+.seasonal-halo {
+  position: absolute;
+  top: -15%;
+  left: -10%;
+  width: 65%;
+  height: 70%;
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--seasonal-glow) 15%, transparent),
+    transparent 70%
+  );
+  animation: seasonal-breathe 12s ease-in-out infinite alternate;
+}
+
+.seasonal-particle {
+  position: absolute;
+  left: var(--particle-x);
+  top: var(--particle-y);
+  width: var(--particle-size);
+  color: var(--decoration-warm);
+  opacity: 0.35;
+  animation: seasonal-fall var(--particle-duration) var(--particle-delay) linear
+    infinite;
+}
+
+.seasonal-particle:nth-child(3n) {
+  color: var(--decoration-light);
+}
+.seasonal-scene--halloween .seasonal-particle {
+  color: var(--accent);
+  opacity: 0.25;
+}
+.seasonal-scene--christmas .seasonal-particle {
+  color: var(--decoration-cream);
+  opacity: 0.5;
+}
+
+.seasonal-corner {
+  position: absolute;
+  width: calc(var(--spacing) * 56);
+  opacity: 0.8;
+}
+
+.seasonal-art {
+  display: block;
+  aspect-ratio: 1;
+  animation: seasonal-float var(--art-duration, 7s) var(--art-delay, 0s)
+    ease-in-out infinite alternate;
+}
+
+.seasonal-corner .seasonal-art {
+  width: 100%;
+}
+
+.seasonal-heading-art .seasonal-art {
+  width: 100%;
+  --art-duration: 6s;
+  --art-delay: -2s;
+  --art-lift: calc(var(--spacing) * -2);
+  --art-sway: calc(var(--spacing) * 1);
+}
+
+:root[data-season]:not([data-season="default"])
+  .seasonal-admin
+  [data-slot="card"] {
+  background-color: color-mix(in srgb, var(--card) 80%, transparent);
+}
+
+.seasonal-site[data-seasonal-paused="true"] .seasonal-art {
+  animation-play-state: paused;
+}
+
+@keyframes seasonal-float {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translate(
+      var(--art-sway, calc(var(--spacing) * 2)),
+      var(--art-lift, calc(var(--spacing) * -4))
+    );
+  }
+}
+
+.seasonal-corner--intro {
+  left: 8%;
+  top: 21%;
+  width: calc(var(--spacing) * 44);
+  --art-duration: 6s;
+  --art-delay: -2s;
+}
+.seasonal-corner--left {
+  left: 17%;
+  bottom: 9%;
+  --art-duration: 5s;
+  --art-sway: calc(var(--spacing) * -3);
+}
+.seasonal-corner--right {
+  right: 12%;
+  bottom: 24%;
+  --art-delay: -3s;
+  --art-duration: 6s;
+}
+.seasonal-corner--accent {
+  right: 31%;
+  top: 15%;
+  width: calc(var(--spacing) * 44);
+  --art-delay: -5s;
+  --art-duration: 7s;
+  --art-lift: calc(var(--spacing) * -5);
+  --art-sway: calc(var(--spacing) * -2);
+}
+.seasonal-scene--halloween .seasonal-corner--right {
+  --art-lift: calc(var(--spacing) * -5);
+}
+.seasonal-web {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--spacing) * 48);
+}
+
+.seasonal-lights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  height: calc(var(--spacing) * 5);
+  border-top: 1px solid var(--decoration-green);
+}
+
+.seasonal-lights i {
+  width: calc(var(--spacing) * 1.5);
+  height: calc(var(--spacing) * 2);
+  border-radius: 0 0 50% 50%;
+  background: var(--decoration-light);
+  box-shadow: 0 0 calc(var(--spacing) * 3) var(--decoration-light);
+  animation: seasonal-twinkle 4s ease-in-out infinite alternate;
+}
+.seasonal-lights i:nth-child(3n) {
+  background: var(--decoration-berry);
+  box-shadow: 0 0 calc(var(--spacing) * 3) var(--decoration-berry);
+}
+.seasonal-lights i:nth-child(3n + 1) {
+  background: var(--decoration-green);
+  box-shadow: 0 0 calc(var(--spacing) * 3) var(--decoration-green);
+}
+
+.seasonal-scene[data-paused="true"] * {
+  animation-play-state: paused;
+}
+
+@keyframes seasonal-fall {
+  from {
+    transform: translate3d(0, -110vh, 0) rotate(-20deg);
+  }
+  to {
+    transform: translate3d(var(--particle-sway), 110vh, 0) rotate(180deg);
+  }
+}
+@keyframes seasonal-breathe {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes seasonal-twinkle {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (width < 640px) {
+  .seasonal-particle:nth-child(n + 7) {
+    display: none;
+  }
+  .seasonal-corner {
+    width: calc(var(--spacing) * 28);
+    opacity: 0.3;
+  }
+  .seasonal-corner--left {
+    left: 7%;
+    bottom: 12%;
+  }
+  .seasonal-corner--right {
+    right: 9%;
+    bottom: 33%;
+  }
+  .seasonal-corner--intro {
+    width: calc(var(--spacing) * 24);
+    left: 6%;
+    top: 24%;
+  }
+  .seasonal-corner--accent {
+    width: calc(var(--spacing) * 24);
+    right: 22%;
+    top: 18%;
+  }
+  .seasonal-web {
+    width: calc(var(--spacing) * 28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seasonal-scene *,
+  .seasonal-art {
+    animation: none !important;
+  }
 }
 
 .dark {

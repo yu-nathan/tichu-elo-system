@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SeasonalThemeProvider } from "@/components/seasonal-theme-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -64,7 +65,7 @@ const RootLayout = ({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <SeasonalThemeProvider>{children}</SeasonalThemeProvider>
       </body>
     </html>
   );

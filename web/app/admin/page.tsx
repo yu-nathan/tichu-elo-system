@@ -1,3 +1,4 @@
+import { AccessPageShell } from "@/components/access-page-shell";
 import { AdminPanel } from "@/components/admin-panel";
 import { getChatGPTUser, chatGPTSignInPath } from "@/app/chatgpt-auth";
 import { env } from "cloudflare:workers";
@@ -11,7 +12,7 @@ const AdminPage = async () => {
 
   if (!user) {
     return (
-      <main className="grid min-h-screen place-items-center px-4">
+      <AccessPageShell>
         <div className="max-w-md rounded-2xl border border-white/10 bg-card p-8 text-center">
           <h1 className="text-2xl font-semibold">Admin sign in</h1>
           <p className="mt-3 text-sm text-muted-foreground">
@@ -26,24 +27,24 @@ const AdminPage = async () => {
             Sign in with ChatGPT
           </a>
         </div>
-      </main>
+      </AccessPageShell>
     );
   }
 
   if (!(await hasAdminAccess(user.email, env.DB))) {
     return (
-      <main className="grid min-h-screen place-items-center px-4">
+      <AccessPageShell>
         <div className="max-w-md rounded-2xl border border-red-400/20 bg-card p-8">
           <h1 className="text-2xl font-semibold">Access denied</h1>
           <p className="mt-3 text-sm text-muted-foreground">
             This account is signed in, but it is not authorized to edit the
             Tichu leaderboard.
           </p>
-          <a className="mt-5 inline-block text-sm text-emerald-300" href="/">
+          <a className="mt-5 inline-block text-sm text-seasonal-brand" href="/">
             Return to leaderboard
           </a>
         </div>
-      </main>
+      </AccessPageShell>
     );
   }
 

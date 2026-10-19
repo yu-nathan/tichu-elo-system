@@ -120,7 +120,7 @@ const PlayerRow = ({
         </div>
       ) : (
         <div className="flex items-center gap-3">
-          <span className="w-8 font-mono text-sm text-emerald-200">
+          <span className="w-8 font-mono text-sm text-seasonal-rating">
             {player.code}
           </span>
           <span className="min-w-0 flex-1 truncate text-sm">{player.name}</span>

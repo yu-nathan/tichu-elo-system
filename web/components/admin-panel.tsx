@@ -1,6 +1,8 @@
 "use client";
 
 import type { FormEvent } from "react";
+import { useSiteTheme } from "@/components/seasonal-theme-provider";
+import { ThemeControls } from "@/components/dashboard/theme-controls";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ApiAccessCard } from "@/components/admin/api-access-card";
@@ -20,6 +22,7 @@ import type { AppData } from "@/lib/models";
 type Props = { initialData: AppData; initialAdmins: AdminEntry[] | null };
 
 export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
+  const season = useSiteTheme();
   const apiAccess = useApiAccess(Boolean(initialAdmins));
   const unreadApiAlerts =
     apiAccess.data?.incidents.filter((incident) => !incident.acknowledgedAt)
@@ -57,18 +60,31 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
   };
 
   return (
-    <main className="h-dvh overflow-hidden px-4 py-6 text-foreground sm:px-6">
+    <main className="seasonal-admin h-dvh overflow-hidden px-4 py-6 text-foreground sm:px-6">
       <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col">
-        <header className="mb-6 flex shrink-0 items-center justify-between">
+        <header className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-seasonal-brand">
               Tichu Elo
             </p>
             <h1 className="mt-1 text-2xl font-semibold">Admin console</h1>
           </div>
-          <Button variant="ghost" nativeButton={false} render={<a href="/" />}>
-            <ArrowLeft /> Leaderboard
-          </Button>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1 sm:gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={
+                <a href={season.preview ? `/?theme=${season.preview}` : "/"} />
+              }
+            >
+              <ArrowLeft /> Leaderboard
+            </Button>
+            <ThemeControls
+              season={season}
+              canPreviewThemes={Boolean(initialAdmins)}
+            />
+          </div>
         </header>
         {unreadApiAlerts > 0 ? (
           <output className="mb-4 shrink-0 rounded-lg border border-border bg-muted p-3 text-sm">

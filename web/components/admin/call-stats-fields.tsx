@@ -23,7 +23,7 @@ export const CallStatsFields = ({
         const player = players.find(({ id }) => id === playerIds[index]);
         return (
           <div key={index} className="rounded-md bg-black/15 p-3">
-            <p className="mb-2 text-xs font-semibold text-emerald-200">
+            <p className="mb-2 text-xs font-semibold text-seasonal-rating">
               {player?.name ?? `Player ${index + 1}`}
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

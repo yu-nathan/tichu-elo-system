@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { LeaderboardCard } from "@/components/dashboard/leaderboard-card";
 import { MatchmakerCard } from "@/components/dashboard/matchmaker-card";
 import { HistoryCard } from "@/components/dashboard/history-card";
+import { ThemeControls } from "@/components/dashboard/theme-controls";
+import { useSiteTheme } from "@/components/seasonal-theme-provider";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { discordHistory, discordLeaderboard } from "@/lib/discord";
 import type { DashboardData } from "@/lib/models";
@@ -15,6 +17,7 @@ type Props = {
   data: DashboardData;
   userEmail: string | null;
   isAdmin: boolean;
+  canPreviewThemes: boolean;
   signInHref: string;
   signOutHref: string;
 };
@@ -23,9 +26,11 @@ export const Dashboard = ({
   data,
   userEmail,
   isAdmin,
+  canPreviewThemes,
   signInHref,
   signOutHref,
 }: Props) => {
+  const season = useSiteTheme();
   const [view, setView] = useState("leaderboard");
   const active = useMemo(
     () => data.leaderboard.filter((player) => !player.archivedAt),
@@ -33,23 +38,31 @@ export const Dashboard = ({
   );
   const { copied, error, copy } = useClipboard();
   return (
-    <main className="h-dvh overflow-hidden bg-background text-foreground">
-      <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col px-3 py-3 sm:px-6 lg:px-8">
+    <main className="h-dvh overflow-hidden text-foreground">
+      <div className="relative z-10 mx-auto flex h-full min-h-0 max-w-7xl flex-col px-3 py-3 sm:px-6 lg:px-8">
         <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/8 pb-3">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-seasonal-brand">
               <Sparkles className="size-3.5" /> Tichu Elo
             </div>
             <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
               Live standings, match history, and balanced teams.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1 sm:gap-2">
             {isAdmin ? (
               <Button
                 size="sm"
                 nativeButton={false}
-                render={<a href="/admin" />}
+                render={
+                  <a
+                    href={
+                      season.preview
+                        ? `/admin?theme=${season.preview}`
+                        : "/admin"
+                    }
+                  />
+                }
               >
                 <Settings /> Manage
               </Button>
@@ -74,6 +87,10 @@ export const Dashboard = ({
                 Sign out
               </Button>
             ) : null}
+            <ThemeControls
+              season={season}
+              canPreviewThemes={canPreviewThemes}
+            />
           </div>
         </header>
 
@@ -125,6 +142,7 @@ export const Dashboard = ({
             >
               <LeaderboardCard
                 active={active}
+                theme={season.theme}
                 copied={copied === "leaderboard"}
                 onCopy={() => copy("leaderboard", discordLeaderboard(data))}
               />
