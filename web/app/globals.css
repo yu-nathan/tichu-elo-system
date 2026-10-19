@@ -617,12 +617,18 @@ body {
 }
 
 @media (width < 640px) {
+  :root[data-season]:not([data-season="default"])
+    .seasonal-site
+    [data-slot="card"] {
+    background-color: color-mix(in srgb, var(--card) 65%, transparent);
+    background-image: none;
+  }
   .seasonal-particle:nth-child(n + 7) {
     display: none;
   }
   .seasonal-corner {
     width: calc(var(--spacing) * 28);
-    opacity: 0.3;
+    opacity: 0.45;
   }
   .seasonal-corner--left {
     left: 7%;
