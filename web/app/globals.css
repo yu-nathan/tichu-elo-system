@@ -299,6 +299,40 @@ body {
   width: 100%;
 }
 
+/* The pre-paint root theme reserves the heading before React or artwork loads. */
+.seasonal-heading-art,
+.seasonal-standings-label {
+  display: none;
+}
+
+.seasonal-standings-label--default {
+  display: inline;
+}
+
+:root:is(
+    [data-season="halloween"],
+    [data-season="thanksgiving"],
+    [data-season="christmas"]
+  )
+  .seasonal-heading-art {
+  display: block;
+}
+
+:root:is(
+    [data-season="halloween"],
+    [data-season="thanksgiving"],
+    [data-season="christmas"]
+  )
+  .seasonal-standings-label--default {
+  display: none;
+}
+
+:root[data-season="halloween"] .seasonal-standings-label--halloween,
+:root[data-season="thanksgiving"] .seasonal-standings-label--thanksgiving,
+:root[data-season="christmas"] .seasonal-standings-label--christmas {
+  display: inline;
+}
+
 .seasonal-heading-art .seasonal-art {
   width: 100%;
   --art-duration: 6s;

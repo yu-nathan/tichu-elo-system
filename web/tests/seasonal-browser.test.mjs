@@ -267,6 +267,82 @@ test("mobile appearance menu keeps Manage separate and supports every theme cont
   }
 });
 
+test("leaderboard reserves its themed heading before hydration and image decoding", async (context) => {
+  for (const width of [320, 390, 1440]) {
+    for (const theme of ["halloween", "thanksgiving", "christmas", "default"]) {
+      const { page, errors } = await openSession(context, {
+        viewport: { width, height: 1000 },
+      });
+      let release;
+      const pending = new Promise((resolve) => {
+        release = resolve;
+      });
+      await page.route("**/*", async (route) => {
+        if (route.request().resourceType() === "script") await pending;
+        await route.continue();
+      });
+      await page.addInitScript(() => {
+        const NativeImage = window.Image;
+        const pending = new Promise((resolve) => {
+          window.releaseArtDecode = resolve;
+        });
+        window.Image = class extends NativeImage {
+          decode = async () => {
+            await super.decode();
+            await pending;
+          };
+        };
+      });
+      await page.goto(`/?theme=${theme}`, { waitUntil: "commit" });
+      const header = page.locator('[data-slot="card-header"]').first();
+      const bounds = async () => ({
+        header: await header.boundingBox(),
+        title: await header
+          .getByText("Leaderboard", { exact: true })
+          .boundingBox(),
+        copy: await header
+          .getByRole("button", { name: "Copy for Discord" })
+          .boundingBox(),
+        players: await page
+          .getByRole("region", { name: "Leaderboard players" })
+          .boundingBox(),
+      });
+      let initial;
+      try {
+        await expectTheme(page, theme, false);
+        await expect(header).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        await expect(page.locator(".seasonal-site")).toHaveAttribute(
+          "data-theme-ready",
+          "false",
+        );
+        await expect(page.locator(".seasonal-heading-art")).toHaveCSS(
+          "display",
+          theme === "default" ? "none" : "block",
+        );
+        initial = await bounds();
+      } finally {
+        release();
+      }
+      await expectTheme(page, theme);
+      assert.deepEqual(
+        await bounds(),
+        initial,
+        `${theme} at ${width}px: hydration must not move the heading or rows`,
+      );
+      await page.evaluate(() => window.releaseArtDecode());
+      if (theme !== "default")
+        await expect(header.locator(".seasonal-art")).toHaveCSS("opacity", "1");
+      assert.deepEqual(
+        await bounds(),
+        initial,
+        `${theme} at ${width}px: decoding must not move the heading or rows`,
+      );
+      assert.deepEqual(errors, []);
+    }
+  }
+});
+
 test("artwork stays transparent until decoded and reveals without shifting the header", async (context) => {
   const { page, errors } = await openSession(context);
   await page.addInitScript(() => {

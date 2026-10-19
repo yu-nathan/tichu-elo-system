@@ -29,23 +29,28 @@ export const LeaderboardCard = ({
       <Card className="h-full min-h-0 border-white/8 bg-card/80 shadow-2xl shadow-black/20">
         <CardHeader className="shrink-0 border-b border-white/8">
           <div className="flex items-start gap-3">
-            {theme !== "default" ? (
-              <div
-                className="seasonal-heading-art pointer-events-none w-32 shrink-0 sm:w-48"
-                aria-hidden="true"
-              >
+            <div
+              className="seasonal-heading-art pointer-events-none aspect-square w-32 shrink-0 sm:w-48"
+              aria-hidden="true"
+            >
+              {theme !== "default" ? (
                 <SeasonalArt theme={theme} variant={0} />
-              </div>
-            ) : null}
+              ) : null}
+            </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
               <div>
                 <Badge
                   variant="outline"
                   className="border-seasonal-rank/30 text-seasonal-badge"
                 >
-                  {theme === "default"
-                    ? "Standings"
-                    : `${THEME_LABELS[theme]} standings`}
+                  {Object.entries(THEME_LABELS).map(([name, label]) => (
+                    <span
+                      key={name}
+                      className={`seasonal-standings-label seasonal-standings-label--${name}`}
+                    >
+                      {name === "default" ? "Standings" : `${label} standings`}
+                    </span>
+                  ))}
                 </Badge>
                 <CardTitle className="mt-3 text-xl">Leaderboard</CardTitle>
               </div>
