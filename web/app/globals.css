@@ -401,6 +401,32 @@ body {
   width: calc(var(--spacing) * 48);
 }
 
+.seasonal-spider {
+  transition: opacity 240ms ease-out;
+  offset-path: path(
+    "M74 74 Q71 41 97 40 L60 25 Q43 25 46 46 Q25 43 25 60 L40 97 Q41 71 74 74 Z"
+  );
+  offset-anchor: 0px 0px;
+  offset-position: 0px 0px;
+  offset-rotate: auto -90deg;
+  animation: seasonal-spider-crawl 20s linear infinite;
+}
+
+.seasonal-spider[data-art-ready="false"] {
+  animation-play-state: paused;
+  transition: none;
+}
+
+/* Follow the web's existing spokes and quadratic arcs in SVG coordinates. */
+@keyframes seasonal-spider-crawl {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+
 .seasonal-lights {
   position: absolute;
   top: 0;

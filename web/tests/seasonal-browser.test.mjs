@@ -838,6 +838,107 @@ test("site-wide themes share controls, previews, and preferences with the admin 
   }
 });
 
+test("Halloween spider stays on its web and respects every motion control", async (context) => {
+  for (const width of [390, 1440]) {
+    const { page, errors } = await openSession(context, {
+      viewport: { width, height: 1000 },
+    });
+    await page.goto("/?theme=halloween");
+    await expectTheme(page, "halloween");
+    const spider = page.locator(".seasonal-spider");
+    await expect(spider).toHaveCount(1);
+    await expect(spider).toHaveAttribute("data-art-ready", "true");
+    await expect(spider).toHaveCSS("opacity", "1");
+    const header = page.locator('[data-slot="card-header"]').first();
+    const before = await header.boundingBox();
+    const positions = await spider.evaluate((element) => {
+      const animation = element.getAnimations()[0];
+      const positions = [0, 4000, 8000, 12000, 16000].map((time) => {
+        animation.currentTime = time;
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom };
+      });
+      return positions;
+    });
+    const centers = positions.map(({ x, y, right, bottom }) => ({
+      x: (x + right) / 2,
+      y: (y + bottom) / 2,
+    }));
+    assert.ok(
+      Math.max(...centers.map(({ x }) => x)) -
+        Math.min(...centers.map(({ x }) => x)) >
+        20,
+    );
+    assert.ok(
+      Math.max(...centers.map(({ y }) => y)) -
+        Math.min(...centers.map(({ y }) => y)) >
+        20,
+    );
+    const [a, b, c] = centers;
+    assert.ok(
+      Math.abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) > 100,
+      "The spider must turn across strands, not move along one straight line",
+    );
+    const web = await page.locator(".seasonal-web").boundingBox();
+    for (const position of positions) {
+      assert.ok(position.x >= web.x && position.y >= web.y);
+      assert.ok(
+        position.right <= web.x + web.width &&
+          position.bottom <= web.y + web.height,
+      );
+    }
+    assert.deepEqual(await header.boundingBox(), before);
+    if (width < 640)
+      await page
+        .getByRole("button", { name: "Appearance", exact: true })
+        .click();
+    await page
+      .getByRole(width < 640 ? "menuitem" : "button", {
+        name: "Pause seasonal animations",
+        exact: true,
+      })
+      .click();
+    await expect(spider).toHaveCSS("animation-play-state", "paused");
+    if (width < 640) {
+      await expect(page.getByRole("menu")).toHaveCount(0);
+      await page
+        .getByRole("button", { name: "Appearance", exact: true })
+        .click();
+    }
+    await page
+      .getByRole(width < 640 ? "menuitem" : "button", {
+        name: "Play seasonal animations",
+        exact: true,
+      })
+      .click();
+    await expect(spider).toHaveCSS("animation-play-state", "running");
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        value: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(spider).toHaveCSS("animation-play-state", "paused");
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        value: false,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(spider).toHaveCSS("animation-name", "none");
+    await expect(spider).toHaveCSS("transition-duration", "0s");
+    for (const theme of ["thanksgiving", "christmas", "default"]) {
+      await page.goto(`/?theme=${theme}`);
+      await expectTheme(page, theme);
+      await expect(spider).toHaveCount(0);
+    }
+    assert.deepEqual(errors, []);
+  }
+});
+
 test("animation preferences persist and reduced motion overrides playback", async (context) => {
   const { page, errors } = await openSession(context);
   await page.goto("/?theme=christmas");

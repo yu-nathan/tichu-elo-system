@@ -65,6 +65,35 @@ const Particle = ({ theme }: { theme: SeasonalTheme }) => (
   </svg>
 );
 
+const HalloweenWeb = () => {
+  const source = "/seasonal/halloween-spider.png";
+  const ready = useDecodedImage(source);
+  return (
+    <svg
+      viewBox="0 0 160 160"
+      className="seasonal-web"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g
+        fill="none"
+        stroke="var(--decoration-cream)"
+        strokeWidth="1"
+        opacity=".4"
+      >
+        <path d="M0 0v155M0 0l60 145M0 0l110 110M0 0l145 60M0 0h155M0 30q6-8 12-1 1-10 9-8 0-8 8-9-7-6 1-12M0 65q11-15 25-5 0-17 21-14-3-21 14-21-10-14 5-25M0 105q20-23 40-8 1-26 34-23-3-33 23-34-15-20 8-40M0 150q26-29 57-11 3-36 49-33-3-46 33-49-18-31 11-57" />
+      </g>
+      <g
+        className="seasonal-spider"
+        data-art-ready={ready}
+        style={{ opacity: ready ? 1 : 0 }}
+      >
+        <image href={source} x="-20" y="-20" width="40" height="40" />
+      </g>
+    </svg>
+  );
+};
+
 export const SeasonalDecorations = ({
   theme,
   paused,
@@ -121,18 +150,7 @@ export const SeasonalDecorations = ({
           ))}
         </div>
       ) : null}
-      {theme === "halloween" ? (
-        <svg viewBox="0 0 160 160" className="seasonal-web">
-          <g
-            fill="none"
-            stroke="var(--decoration-cream)"
-            strokeWidth="1"
-            opacity=".4"
-          >
-            <path d="M0 0v155M0 0l60 145M0 0l110 110M0 0l145 60M0 0h155M0 30q6-8 12-1 1-10 9-8 0-8 8-9-7-6 1-12M0 65q11-15 25-5 0-17 21-14-3-21 14-21-10-14 5-25M0 105q20-23 40-8 1-26 34-23-3-33 23-34-15-20 8-40M0 150q26-29 57-11 3-36 49-33-3-46 33-49-18-31 11-57" />
-          </g>
-        </svg>
-      ) : null}
+      {theme === "halloween" ? <HalloweenWeb /> : null}
     </div>
   );
 };
