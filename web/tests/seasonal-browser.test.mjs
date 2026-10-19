@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { SEASONAL_THEMES, THEME_LABELS } from "../lib/seasonal-theme.ts";
+const seasonalThemes = SEASONAL_THEMES.filter((theme) => theme !== "default");
 
 const { chromium, expect } = await import(
   process.env.PLAYWRIGHT_TEST_MODULE ?? "playwright/test"
@@ -61,7 +63,15 @@ test("mobile selects its palette before app scripts load and preserves it throug
     { preview: "invalid", blockedStorage: true, theme: "halloween" },
     { date: "2026-11-26T20:00:00Z", theme: "thanksgiving" },
     { date: "2026-11-27T20:00:00Z", theme: "christmas" },
-    { date: "2027-01-01T20:00:00Z", theme: "default" },
+    { date: "2027-01-01T20:00:00Z", theme: "new-year" },
+    { date: "2027-02-01T20:00:00Z", theme: "valentines" },
+    { date: "2027-03-01T20:00:00Z", theme: "spring" },
+    { date: "2027-04-01T20:00:00Z", theme: "easter" },
+    { date: "2027-05-01T20:00:00Z", theme: "spring" },
+    { date: "2027-06-01T20:00:00Z", theme: "summer" },
+    { date: "2027-07-01T20:00:00Z", theme: "july-fourth" },
+    { date: "2027-08-01T20:00:00Z", theme: "summer" },
+    { date: "2027-09-01T20:00:00Z", theme: "default" },
     { date: "2026-10-01T01:00:00Z", theme: "default" },
   ]) {
     const { page, errors } = await openSession(context, {
@@ -222,14 +232,23 @@ test("mobile appearance menu keeps Manage separate and supports every theme cont
         await expect(page.getByLabel("Team A score")).toHaveValue("750");
       await page.reload();
       await expectTheme(page, "default");
-      for (const [theme, label] of [
-        ["halloween", "Halloween"],
-        ["thanksgiving", "Thanksgiving"],
-        ["christmas", "Christmas"],
-        ["default", "Original"],
-      ]) {
+      for (const [theme, label] of SEASONAL_THEMES.map((theme) => [
+        theme,
+        THEME_LABELS[theme],
+      ])) {
         await choose(label);
         await expectTheme(page, theme);
+        if (path === "/") {
+          const badge = page.locator(`[data-slot="badge"]`).first();
+          const bounds = await badge.boundingBox();
+          assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
+          assert.ok(
+            await badge.evaluate(
+              (element) => element.scrollWidth <= element.clientWidth,
+            ),
+            "The theme label wraps within the narrow mobile heading",
+          );
+        }
         assert.equal(
           await page.evaluate(() => localStorage.getItem("tichu-elo:theme:v1")),
           "default",
@@ -269,7 +288,7 @@ test("mobile appearance menu keeps Manage separate and supports every theme cont
 
 test("leaderboard reserves its themed heading before hydration and image decoding", async (context) => {
   for (const width of [320, 390, 1440]) {
-    for (const theme of ["halloween", "thanksgiving", "christmas", "default"]) {
+    for (const theme of SEASONAL_THEMES) {
       const { page, errors } = await openSession(context, {
         viewport: { width, height: 1000 },
       });
@@ -357,7 +376,7 @@ test("artwork stays transparent until decoded and reveals without shifting the h
       };
     };
   });
-  for (const theme of ["halloween", "thanksgiving", "christmas"]) {
+  for (const theme of seasonalThemes) {
     for (const cached of [false, true]) {
       if (cached) await page.reload();
       else await page.goto(`/?theme=${theme}`);
@@ -443,7 +462,7 @@ test("color-blind mode persists across themes and pages without changing theme p
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    for (const theme of ["halloween", "thanksgiving", "christmas", "default"]) {
+    for (const theme of SEASONAL_THEMES) {
       await page.goto(`/?theme=${theme}`);
       await expectTheme(page, theme);
       await expect(toggle).toHaveAttribute("aria-pressed", "true");
@@ -502,12 +521,10 @@ test("owner previews every theme from either header without changing preferences
       await expect(
         page.getByRole("button", { name: "Use seasonal theme", exact: true }),
       ).toBeVisible();
-      for (const [theme, label] of [
-        ["halloween", "Halloween"],
-        ["thanksgiving", "Thanksgiving"],
-        ["christmas", "Christmas"],
-        ["default", "Original"],
-      ]) {
+      for (const [theme, label] of SEASONAL_THEMES.map((theme) => [
+        theme,
+        THEME_LABELS[theme],
+      ])) {
         await page
           .getByRole("button", { name: "Preview themes", exact: true })
           .click();
@@ -574,7 +591,7 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
     ["desktop", { width: 1440, height: 1000 }],
     ["mobile", { width: 390, height: 844 }],
   ]) {
-    for (const theme of ["halloween", "thanksgiving", "christmas"]) {
+    for (const theme of seasonalThemes) {
       const { page, errors } = await openSession(context, { viewport });
       await page.goto(`/?theme=${theme}`);
       await expectTheme(page, theme);
@@ -593,6 +610,19 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
       await expect(page.locator(".seasonal-scene .seasonal-art")).toHaveCount(
         3,
       );
+      if (theme === "spring" || theme === "july-fourth") {
+        await expect(
+          page.locator(".seasonal-heading-art .seasonal-art"),
+        ).toHaveAttribute("data-art-variant", "1");
+        await expect(
+          page.locator(".seasonal-corner--right .seasonal-art"),
+        ).toHaveAttribute("data-art-variant", "0");
+      }
+      if (theme === "july-fourth") {
+        await expect(
+          page.locator(".seasonal-heading-art image"),
+        ).toHaveAttribute("href", "/seasonal/july-fourth-fireworks.png");
+      }
       const artworkMotion = await page
         .locator(".seasonal-art")
         .evaluateAll((elements) =>
@@ -766,7 +796,7 @@ test("default preference persists and previews remain temporary until explicitly
 test("site-wide themes share controls, previews, and preferences with the admin console", async (context) => {
   for (const viewport of [{ width: 1440, height: 1000 }]) {
     const { page, errors } = await openSession(context, { viewport });
-    for (const theme of ["halloween", "thanksgiving", "christmas"]) {
+    for (const theme of seasonalThemes) {
       await page.goto(`/?theme=${theme}`);
       await expect(
         page.getByRole("button", { name: "Manage", exact: true }),
@@ -1084,8 +1114,20 @@ test("open dashboards update at local midnight and when focus returns", async (c
   await expectTheme(page, "thanksgiving");
   await page.clock.runFor(200);
   await expectTheme(page, "christmas");
-  await page.clock.setSystemTime(new Date("2027-01-01T08:00:00Z"));
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expectTheme(page, "default");
+  for (const [date, theme] of [
+    ["2027-01-01T08:00:00Z", "new-year"],
+    ["2027-02-01T08:00:00Z", "valentines"],
+    ["2027-03-01T08:00:00Z", "spring"],
+    ["2027-04-01T08:00:00Z", "easter"],
+    ["2027-05-01T08:00:00Z", "spring"],
+    ["2027-06-01T08:00:00Z", "summer"],
+    ["2027-07-01T08:00:00Z", "july-fourth"],
+    ["2027-08-01T08:00:00Z", "summer"],
+    ["2027-09-01T08:00:00Z", "default"],
+  ]) {
+    await page.clock.setSystemTime(new Date(date));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expectTheme(page, theme);
+  }
   assert.deepEqual(errors, []);
 });

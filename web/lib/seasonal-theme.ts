@@ -1,5 +1,11 @@
 export const SEASONAL_THEMES = [
   "default",
+  "new-year",
+  "valentines",
+  "spring",
+  "easter",
+  "summer",
+  "july-fourth",
   "halloween",
   "thanksgiving",
   "christmas",
@@ -10,6 +16,12 @@ export type ThemePreference = "automatic" | "default";
 
 export const THEME_LABELS: Record<SeasonalTheme, string> = {
   default: "Original",
+  "new-year": "New Year",
+  valentines: "Valentine’s Day",
+  spring: "Spring",
+  easter: "Easter",
+  summer: "Summer",
+  "july-fourth": "July Fourth",
   halloween: "Halloween",
   thanksgiving: "Thanksgiving",
   christmas: "Christmas",
@@ -33,6 +45,12 @@ export const seasonalThemeForCalendar = (
   day: number,
   thanksgiving: number,
 ): SeasonalTheme => {
+  if (month === 0) return "new-year";
+  if (month === 1) return "valentines";
+  if (month === 2 || month === 4) return "spring";
+  if (month === 3) return "easter";
+  if (month === 5 || month === 7) return "summer";
+  if (month === 6) return "july-fourth";
   if (month === 9) return "halloween";
   if (month === 10) return day <= thanksgiving ? "thanksgiving" : "christmas";
   return month === 11 ? "christmas" : "default";

@@ -104,6 +104,140 @@ body {
 }
 
 /* Every seasonal color lives here; components consume semantic tokens. */
+:root[data-season="new-year"] {
+  --leaderboard-rank: #f1cd79;
+  --background: #0e1729;
+  --foreground: #fff6df;
+  --card: #1b2941;
+  --secondary: #2d3c56;
+  --muted: #26344b;
+  --muted-foreground: #bac9e1;
+  --primary: #f1cd79;
+  --primary-foreground: #2c210b;
+  --accent: #c2ddff;
+  --accent-foreground: #14243c;
+  --border: #8eabc566;
+  --input: #8eabc566;
+  --seasonal-glow: #e3b65c;
+  --seasonal-glow-secondary: #648fca;
+  --decoration-warm: #e8c273;
+  --decoration-light: #c8dfff;
+  --decoration-cream: #fff6df;
+  --decoration-ink: #0e1729;
+}
+
+:root[data-season="valentines"] {
+  --leaderboard-rank: #f2c5ac;
+  --background: #25111d;
+  --foreground: #fff0f5;
+  --card: #382031;
+  --secondary: #503047;
+  --muted: #44253b;
+  --muted-foreground: #dfb8cc;
+  --primary: #f2c5ac;
+  --primary-foreground: #3c1428;
+  --accent: #ffd9b6;
+  --accent-foreground: #4d2334;
+  --border: #c784a466;
+  --input: #c784a466;
+  --seasonal-glow: #c55782;
+  --seasonal-glow-secondary: #a56b81;
+  --decoration-warm: #f1a1bf;
+  --decoration-light: #ffdbbc;
+  --decoration-cream: #fff0f5;
+  --decoration-ink: #25111d;
+}
+
+:root[data-season="spring"] {
+  --leaderboard-rank: #f6bdd5;
+  --background: #10251f;
+  --foreground: #effcf3;
+  --card: #1c372e;
+  --secondary: #2e4c3f;
+  --muted: #264336;
+  --muted-foreground: #bbd9c4;
+  --primary: #f6bdd5;
+  --primary-foreground: #3b1e2e;
+  --accent: #f8cce0;
+  --accent-foreground: #3b1e2e;
+  --border: #84b69b66;
+  --input: #84b69b66;
+  --seasonal-glow: #55a770;
+  --seasonal-glow-secondary: #d694b3;
+  --decoration-warm: #91c992;
+  --decoration-light: #c1df9e;
+  --decoration-cream: #effcf3;
+  --decoration-ink: #10251f;
+}
+
+:root[data-season="easter"] {
+  --leaderboard-rank: #ffe5a5;
+  --background: #211b32;
+  --foreground: #faf3ff;
+  --card: #302941;
+  --secondary: #453a59;
+  --muted: #3b314e;
+  --muted-foreground: #d0bfdf;
+  --primary: #ffe5a5;
+  --primary-foreground: #30203e;
+  --accent: #ffe5a5;
+  --accent-foreground: #3f3116;
+  --border: #ad93c866;
+  --input: #ad93c866;
+  --seasonal-glow: #9670c4;
+  --seasonal-glow-secondary: #d1ac65;
+  --decoration-warm: #ceb1ef;
+  --decoration-light: #ffedb8;
+  --decoration-cream: #faf3ff;
+  --decoration-ink: #211b32;
+}
+
+:root[data-season="summer"] {
+  --leaderboard-rank: #ffb49c;
+  --background: #10272c;
+  --foreground: #f3fcfa;
+  --card: #1b3a40;
+  --secondary: #2c4e54;
+  --muted: #25464c;
+  --muted-foreground: #bad7d9;
+  --primary: #ffb49c;
+  --primary-foreground: #3c211a;
+  --accent: #ffd0bb;
+  --accent-foreground: #3c211a;
+  --border: #86b9bf66;
+  --input: #86b9bf66;
+  --seasonal-glow: #46a9b7;
+  --seasonal-glow-secondary: #ef9a7a;
+  --decoration-warm: #f1ab8e;
+  --decoration-light: #a4e1df;
+  --decoration-cream: #fff6e9;
+  --decoration-ink: #14363c;
+}
+
+:root[data-season="july-fourth"] {
+  --leaderboard-rank: #ffb1b3;
+  --background: #101b30;
+  --foreground: #fffafa;
+  --seasonal-text: var(--foreground);
+  --seasonal-brand-foreground: #182640;
+  --card: #1c2b45;
+  --secondary: #2d3e59;
+  --muted: #263650;
+  --muted-foreground: #c2cede;
+  --primary: #f47782;
+  --primary-foreground: #421621;
+  --accent: #ffb1b3;
+  --accent-foreground: #491d27;
+  --border: #9aabc766;
+  --input: #9aabc766;
+  --seasonal-glow: #426caa;
+  --seasonal-glow-secondary: #ce4d61;
+  --decoration-warm: #f08f99;
+  --decoration-light: #fff7ef;
+  --decoration-cream: #fffafa;
+  --decoration-ink: #182640;
+}
+
 :root[data-season="halloween"] {
   --leaderboard-rank: #ffc17a;
   --background: #160f23;
@@ -276,6 +410,9 @@ body {
   color: var(--decoration-cream);
   opacity: 0.5;
 }
+.seasonal-scene--spring .seasonal-particle {
+  opacity: 0.45;
+}
 
 .seasonal-corner {
   position: absolute;
@@ -309,24 +446,19 @@ body {
   display: inline;
 }
 
-:root:is(
-    [data-season="halloween"],
-    [data-season="thanksgiving"],
-    [data-season="christmas"]
-  )
-  .seasonal-heading-art {
+:root[data-season]:not([data-season="default"]) .seasonal-heading-art {
   display: block;
 }
-
-:root:is(
-    [data-season="halloween"],
-    [data-season="thanksgiving"],
-    [data-season="christmas"]
-  )
+:root[data-season]:not([data-season="default"])
   .seasonal-standings-label--default {
   display: none;
 }
-
+:root[data-season="new-year"] .seasonal-standings-label--new-year,
+:root[data-season="valentines"] .seasonal-standings-label--valentines,
+:root[data-season="spring"] .seasonal-standings-label--spring,
+:root[data-season="easter"] .seasonal-standings-label--easter,
+:root[data-season="summer"] .seasonal-standings-label--summer,
+:root[data-season="july-fourth"] .seasonal-standings-label--july-fourth,
 :root[data-season="halloween"] .seasonal-standings-label--halloween,
 :root[data-season="thanksgiving"] .seasonal-standings-label--thanksgiving,
 :root[data-season="christmas"] .seasonal-standings-label--christmas {

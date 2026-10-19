@@ -7,6 +7,7 @@ import {
   resolveSeasonalTheme,
   seasonalThemeForDate,
   thanksgivingDay,
+  SEASONAL_THEMES,
 } from "../lib/seasonal-theme.ts";
 
 test("seasonal boundaries follow the local calendar every year", () => {
@@ -15,6 +16,23 @@ test("seasonal boundaries follow the local calendar every year", () => {
     assert.equal(new Date(year, 10, thanksgiving).getDay(), 4);
     assert.ok(thanksgiving >= 22 && thanksgiving <= 28);
     const cases = [
+      [new Date(year, 0, 1), "new-year"],
+      [new Date(year, 0, 31, 23, 59, 59), "new-year"],
+      [new Date(year, 1, 1), "valentines"],
+      [new Date(year, 2, 0, 23, 59, 59), "valentines"],
+      [new Date(year, 2, 1), "spring"],
+      [new Date(year, 2, 31, 23, 59, 59), "spring"],
+      [new Date(year, 3, 1), "easter"],
+      [new Date(year, 3, 30, 23, 59, 59), "easter"],
+      [new Date(year, 4, 1), "spring"],
+      [new Date(year, 4, 31, 23, 59, 59), "spring"],
+      [new Date(year, 5, 1), "summer"],
+      [new Date(year, 5, 30, 23, 59, 59), "summer"],
+      [new Date(year, 6, 1), "july-fourth"],
+      [new Date(year, 6, 31, 23, 59, 59), "july-fourth"],
+      [new Date(year, 7, 1), "summer"],
+      [new Date(year, 7, 31, 23, 59, 59), "summer"],
+      [new Date(year, 8, 1), "default"],
       [new Date(year, 8, 30, 23, 59, 59), "default"],
       [new Date(year, 9, 1), "halloween"],
       [new Date(year, 9, 31, 23, 59, 59), "halloween"],
@@ -23,7 +41,7 @@ test("seasonal boundaries follow the local calendar every year", () => {
       [new Date(year, 10, thanksgiving + 1), "christmas"],
       [new Date(year, 11, 1), "christmas"],
       [new Date(year, 11, 31, 23, 59, 59), "christmas"],
-      [new Date(year + 1, 0, 1), "default"],
+      [new Date(year + 1, 0, 1), "new-year"],
     ] as const;
     for (const [date, expected] of cases)
       assert.equal(seasonalThemeForDate(date), expected, date.toString());
@@ -49,7 +67,10 @@ test("previews override preferences without changing automatic selection", () =>
   );
   for (const value of [null, "", "winter", "Halloween", "__proto__"])
     assert.equal(parseThemePreview(value), null);
-  assert.equal(parseThemePreview("thanksgiving"), "thanksgiving");
+  for (const theme of SEASONAL_THEMES) {
+    assert.equal(parseThemePreview(theme), theme);
+    assert.equal(resolveSeasonalTheme("halloween", "default", theme), theme);
+  }
 });
 
 test("midnight refresh uses the next local calendar day", () => {
@@ -83,6 +104,20 @@ test("one instant produces different visitor-local themes, including DST-aware t
     "thanksgiving",
   );
   assert.equal(evaluate("Asia/Tokyo", "2026-11-27T04:00:00Z")[0], "christmas");
+  for (const [instant, west, east] of [
+    ["2027-01-01T04:00:00Z", "christmas", "new-year"],
+    ["2027-02-01T04:00:00Z", "new-year", "valentines"],
+    ["2028-03-01T04:00:00Z", "valentines", "spring"],
+    ["2027-04-01T04:00:00Z", "spring", "easter"],
+    ["2027-05-01T04:00:00Z", "easter", "spring"],
+    ["2027-06-01T04:00:00Z", "spring", "summer"],
+    ["2027-07-01T04:00:00Z", "summer", "july-fourth"],
+    ["2027-08-01T04:00:00Z", "july-fourth", "summer"],
+    ["2027-09-01T04:00:00Z", "summer", "default"],
+  ]) {
+    assert.equal(evaluate("America/Los_Angeles", instant)[0], west);
+    assert.equal(evaluate("Asia/Tokyo", instant)[0], east);
+  }
   assert.equal(
     evaluate("America/Los_Angeles", "2026-03-08T08:00:00Z")[1],
     23 * 60 * 60 * 1000,

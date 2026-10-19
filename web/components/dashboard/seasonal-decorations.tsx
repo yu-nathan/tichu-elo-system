@@ -13,22 +13,32 @@ export const SeasonalArt = ({
   variant: 0 | 1 | 2 | 3;
 }) => {
   const clipId = useId();
-  const crop = artCrops[theme][variant];
-  const standaloneTurkey = theme === "thanksgiving" && variant === 0;
-  const source = standaloneTurkey
-    ? "/seasonal/thanksgiving-turkey.png"
-    : `/seasonal/${theme}-atlas.png`;
+  // Lead with Spring's butterfly and July's fireworks, swapping their intro art.
+  const artworkVariant =
+    (theme === "spring" || theme === "july-fourth") && variant < 2
+      ? variant === 0
+        ? 1
+        : 0
+      : variant;
+  const crop = artCrops[theme][artworkVariant];
+  const standaloneSource =
+    theme === "thanksgiving" && artworkVariant === 0
+      ? "/seasonal/thanksgiving-turkey.png"
+      : theme === "july-fourth" && artworkVariant === 1
+        ? "/seasonal/july-fourth-fireworks.png"
+        : null;
+  const source = standaloneSource ?? `/seasonal/${theme}-atlas.png`;
   const ready = useDecodedImage(source);
   return (
     <svg
       key={source}
       aria-hidden="true"
       focusable="false"
-      data-art-variant={variant}
+      data-art-variant={artworkVariant}
       data-art-ready={ready}
       style={{ opacity: ready ? 1 : 0 }}
       className="seasonal-art"
-      viewBox={standaloneTurkey ? "0 0 1024 1024" : crop.viewBox}
+      viewBox={standaloneSource ? "0 0 1024 1024" : crop.viewBox}
     >
       <defs>
         <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
@@ -37,15 +47,42 @@ export const SeasonalArt = ({
       </defs>
       <image
         href={source}
-        width={standaloneTurkey ? 1024 : 1254}
-        height={standaloneTurkey ? 1024 : 1254}
-        clipPath={standaloneTurkey ? undefined : `url(#${clipId})`}
+        width={standaloneSource ? 1024 : 1254}
+        height={standaloneSource ? 1024 : 1254}
+        clipPath={standaloneSource ? undefined : `url(#${clipId})`}
       />
     </svg>
   );
 };
 
-const Particle = ({ theme }: { theme: SeasonalTheme }) => (
+const SPRING_LEAVES = [
+  {
+    outline: "M20 3C7 10 3 21 10 29Q16 35 20 32Q24 35 30 29C37 21 33 10 20 3Z",
+    veins: "M20 7v31m0-13-8-7m8 1 8-7m-8 19-7-5m7-1 7-5",
+  },
+  {
+    outline:
+      "m20 2 4 9 4-4 1 8 8-1-5 8 4 2-11 8-5-2-5 2L4 24l4-2-5-8 8 1 1-8 4 4Z",
+    veins: "M20 7v31m0-13L9 19m11 6 11-6m-11 2-5-8m5 8 5-8",
+  },
+  {
+    outline: "M27 2C8 8 4 22 12 32 24 30 32 18 27 2Z",
+    veins: "M26 6Q21 23 8 38m11-14-6-8m10 1 5-4m-14 17-4-6m9 1 7-3",
+  },
+  {
+    outline:
+      "m20 3 4 6-1 3 6 1-1 5 6 3-3 4 2 4-9 5-4-2-4 2-9-5 2-4-3-4 6-3-1-5 6-1-1-3Z",
+    veins: "M20 7v31m0-11-9-4m9 4 9-4m-9-5-6-3m6 3 6-3",
+  },
+];
+
+const Particle = ({
+  theme,
+  index,
+}: {
+  theme: SeasonalTheme;
+  index: number;
+}) => (
   <svg viewBox="0 0 40 40" aria-hidden="true" focusable="false">
     {theme === "halloween" ? (
       <path
@@ -56,6 +93,76 @@ const Particle = ({ theme }: { theme: SeasonalTheme }) => (
       <g fill="currentColor" stroke="var(--decoration-ink)" strokeWidth="1">
         <path d="m20 2 5 9 8-4-2 11 7 2-11 9-5-2-2 11-2-11-5 2L2 20l7-2L7 7l8 4Z" />
         <path d="M20 10v20m0-9 7-5m-7 9-8-7" fill="none" opacity=".4" />
+      </g>
+    ) : theme === "new-year" ? (
+      <path
+        d="m20 3 4 11 12 1-9 8 3 12-10-6-10 6 3-12-9-8 12-1Z"
+        fill="currentColor"
+      />
+    ) : theme === "july-fourth" ? (
+      index % 2 === 0 ? (
+        <path
+          d="m20 3 4 11 12 1-9 8 3 12-10-6-10 6 3-12-9-8 12-1Z"
+          fill="currentColor"
+        />
+      ) : (
+        <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M20 3v9m0 16v9M3 20h9m16 0h9M8 8l7 7m10 10 7 7M8 32l7-7m10-10 7-7" />
+          <circle cx="20" cy="20" r="2" fill="currentColor" stroke="none" />
+        </g>
+      )
+    ) : theme === "summer" ? (
+      index % 2 === 0 ? (
+        <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="20" cy="20" r="8" fill="currentColor" stroke="none" />
+          <path d="M20 2v5m0 26v5M2 20h5m26 0h5M7 7l4 4m18 18 4 4M7 33l4-4m18-18 4-4" />
+        </g>
+      ) : (
+        <g
+          stroke="var(--decoration-ink)"
+          strokeWidth="1.1"
+          strokeLinecap="round"
+        >
+          <path
+            d="M15 34 3 17Q0 10 7 9q0-7 7-5 6-7 12 0 7-2 7 5 7 1 4 8L25 34Z"
+            fill="currentColor"
+          />
+          <path
+            d="m20 33-6-26m6 26 6-26m-6 26L7 13m13 20 13-20M14 35h12"
+            fill="none"
+          />
+        </g>
+      )
+    ) : theme === "valentines" ? (
+      <path
+        d="M20 34 6 20C-4 8 12-1 20 11 28-1 44 8 34 20Z"
+        fill="currentColor"
+      />
+    ) : theme === "spring" ? (
+      <g
+        stroke="var(--decoration-ink)"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path
+          d={SPRING_LEAVES[index % SPRING_LEAVES.length].outline}
+          fill="currentColor"
+          strokeWidth=".8"
+        />
+        <path
+          d={SPRING_LEAVES[index % SPRING_LEAVES.length].veins}
+          fill="none"
+          strokeWidth="1.2"
+        />
+      </g>
+    ) : theme === "easter" ? (
+      <g fill="currentColor">
+        <ellipse cx="20" cy="10" rx="6" ry="9" />
+        <ellipse cx="20" cy="10" rx="6" ry="9" transform="rotate(72 20 20)" />
+        <ellipse cx="20" cy="10" rx="6" ry="9" transform="rotate(144 20 20)" />
+        <ellipse cx="20" cy="10" rx="6" ry="9" transform="rotate(216 20 20)" />
+        <ellipse cx="20" cy="10" rx="6" ry="9" transform="rotate(288 20 20)" />
+        <circle cx="20" cy="20" r="5" fill="var(--decoration-light)" />
       </g>
     ) : (
       <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -126,7 +233,7 @@ export const SeasonalDecorations = ({
             } as CSSProperties
           }
         >
-          <Particle theme={theme} />
+          <Particle theme={theme} index={index} />
         </div>
       ))}
       {showIntro ? (

@@ -38,10 +38,10 @@ export const LeaderboardCard = ({
               ) : null}
             </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0 max-w-full">
                 <Badge
                   variant="outline"
-                  className="border-seasonal-rank/30 text-seasonal-badge"
+                  className="max-w-full whitespace-normal border-seasonal-rank/30 text-seasonal-badge"
                 >
                   {Object.entries(THEME_LABELS).map(([name, label]) => (
                     <span
