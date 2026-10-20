@@ -28,6 +28,20 @@ export const CallStatsFields = ({
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Field
+                label="Tichu called"
+                type="number"
+                min={0}
+                value={stat.tichus}
+                onChange={(value) => onChange(index, "tichus", value)}
+              />
+              <Field
+                label="Tichu successful"
+                type="number"
+                min={0}
+                value={stat.successfulTichus}
+                onChange={(value) => onChange(index, "successfulTichus", value)}
+              />
+              <Field
                 label="Grand Tichu called"
                 type="number"
                 min={0}
@@ -42,20 +56,6 @@ export const CallStatsFields = ({
                 onChange={(value) =>
                   onChange(index, "successfulGrandTichus", value)
                 }
-              />
-              <Field
-                label="Tichu called"
-                type="number"
-                min={0}
-                value={stat.tichus}
-                onChange={(value) => onChange(index, "tichus", value)}
-              />
-              <Field
-                label="Tichu successful"
-                type="number"
-                min={0}
-                value={stat.successfulTichus}
-                onChange={(value) => onChange(index, "successfulTichus", value)}
               />
             </div>
           </div>
