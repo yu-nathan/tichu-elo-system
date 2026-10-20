@@ -197,7 +197,7 @@ export const Dashboard = ({
           </Tabs.List>
           {/* CSS controls visibility so desktop can expose every panel. Keeping
               panels mounted preserves selections when mobile tabs change. */}
-          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.2fr_.8fr] lg:grid-rows-[min(50dvh,--spacing(90))_minmax(0,1fr)]">
+          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.2fr_.8fr] lg:grid-rows-[minmax(--spacing(90),max-content)_minmax(0,1fr)]">
             <Tabs.Panel
               value="leaderboard"
               keepMounted

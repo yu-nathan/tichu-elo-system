@@ -71,7 +71,7 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
         as="section"
         aria-label="Matchmaking controls"
         tabIndex={0}
-        className="min-h-0 overflow-y-auto overscroll-contain space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="min-h-0 overflow-y-auto overscroll-contain space-y-3 lg:shrink-0 lg:overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <div>
           <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -152,11 +152,6 @@ export const MatchmakerCard = ({ active }: { active: RatingEntry[] }) => {
               names={displayedMatch.teamB.map((p) => p.name).join(" + ")}
               rating={displayedMatch.ratingB}
             />
-            {displayedMatch.benched.length ? (
-              <p className="text-xs text-muted-foreground">
-                Benched: {displayedMatch.benched.map((p) => p.name).join(", ")}
-              </p>
-            ) : null}
           </div>
         ) : null}
       </CardContent>

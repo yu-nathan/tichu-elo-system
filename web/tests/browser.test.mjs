@@ -690,6 +690,19 @@ test("dashboard stays in the viewport with mobile tabs and independently scrolli
             return { x, y, width, height };
           }),
       );
+    if (!isMobile) {
+      const controls = page.getByRole("region", {
+        name: "Matchmaking controls",
+      });
+      assert.ok(
+        await controls.evaluate((el) => el.scrollHeight <= el.clientHeight),
+      );
+      assert.equal(
+        await controls.evaluate((el) => getComputedStyle(el).overflowY),
+        "visible",
+      );
+      await expect(controls.getByText(/^Benched:/)).toHaveCount(0);
+    }
     const emptyBounds = await cardBounds();
     await selectMatchmakingPlayers(page);
     assert.deepEqual(await cardBounds(), emptyBounds);
