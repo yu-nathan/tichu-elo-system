@@ -1096,3 +1096,150 @@ test("real local routes reject bearer credentials at every existing admin mutati
   const invalidKey = await page.request.get("/api/v1/players", { headers });
   assert.equal(invalidKey.status(), 401);
 });
+
+test("player history searches, paginates, retries, clears, and ignores stale responses", async (context) => {
+  for (const viewport of [
+    { width: 1280, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    const { page, errors } = await openPage(context, "/", { viewport });
+    const data = await (await page.request.get("/api/state")).json();
+    const players = data.players.slice(0, 2);
+    const seats = [
+      "teamAPlayer1Id",
+      "teamAPlayer2Id",
+      "teamBPlayer1Id",
+      "teamBPlayer2Id",
+    ];
+    const player = players[0];
+    const expected = data.games
+      .filter((game) => seats.some((seat) => game[seat] === player.id))
+      .reverse();
+    const actual = await (
+      await page.request.get(`/api/games?playerId=${player.id}`)
+    ).json();
+    assert.deepEqual(
+      actual.games.map(({ id }) => id),
+      expected.slice(0, 20).map(({ id }) => id),
+    );
+    assert.equal(
+      (await page.request.get("/api/games?playerId=bad")).status(),
+      400,
+    );
+    assert.deepEqual(
+      await (await page.request.get("/api/games?playerId=999999")).json(),
+      { games: [], nextCursor: null },
+    );
+
+    await selectDashboardTab(page, "Recent games");
+    const history = page.getByRole("region", { name: "Recent games list" });
+    const search = page.getByRole("combobox", {
+      name: "Filter game history by player",
+    });
+    const initialIds = await history
+      .locator("[data-game-id]")
+      .evaluateAll((els) => els.map((el) => el.dataset.gameId));
+    const fixture = expected[0];
+    assert.ok(fixture);
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({
+      ...fixture,
+      id: 2000 + index,
+    }));
+    let fail = true;
+    let hold = false;
+    let release;
+    const requests = [];
+    await page.route("**/api/games?*", async (route) => {
+      const params = new URL(route.request().url()).searchParams;
+      requests.push(Object.fromEntries(params));
+      if (params.get("playerId") === String(players[1].id)) {
+        await route.fulfill({ json: { games: [], nextCursor: null } });
+      } else if (hold) {
+        await new Promise((resolve) => {
+          release = resolve;
+        });
+        await route.fulfill({ json: { games: firstPage, nextCursor: null } });
+      } else if (fail) {
+        fail = false;
+        await route.fulfill({ status: 503, json: { error: "Unavailable" } });
+      } else {
+        await route.fulfill({
+          json: params.has("cursor")
+            ? { games: [{ ...fixture, id: 2020 }], nextCursor: null }
+            : { games: firstPage, nextCursor: "filtered-next" },
+        });
+      }
+    });
+    await search.fill("No such player");
+    await expect(page.getByText("No players found.")).toBeVisible();
+    await search.fill(player.name);
+    await page.getByRole("option", { name: player.name, exact: true }).click();
+    await expect(history.getByRole("alert")).toContainText(
+      "Could not load games",
+    );
+    await expect(history.locator("[data-game-id]")).toHaveCount(0);
+    await history.getByRole("button", { name: "Retry loading games" }).click();
+    await expect(history.locator("[data-game-id]")).toHaveCount(20);
+    await history.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(history.locator("[data-game-id]")).toHaveCount(21);
+    assert.deepEqual(requests.at(-1), {
+      cursor: "filtered-next",
+      playerId: String(player.id),
+      seasonId: String(data.season.id),
+    });
+    await page.evaluate(() =>
+      Object.defineProperty(navigator, "clipboard", {
+        value: {
+          writeText: async (text) => {
+            window.copiedHistory = text;
+          },
+        },
+      }),
+    );
+    await page
+      .getByRole("button", { name: "Copy for Discord", exact: true })
+      .last()
+      .click();
+    const copied = await page.evaluate(() => window.copiedHistory);
+    assert.match(copied, /2020/);
+    assert.equal(
+      copied.split("\n").filter((line) => /^║\s+\d+\s+║/.test(line)).length,
+      10,
+    );
+
+    await search.fill(players[1].name);
+    await page
+      .getByRole("option", { name: players[1].name, exact: true })
+      .click();
+    await expect(
+      history.getByText("No games found for this player"),
+    ).toBeVisible();
+    hold = true;
+    await search.fill(player.name);
+    await search.press("ArrowDown");
+    await search.press("Enter");
+    await expect.poll(() => typeof release).toBe("function");
+    await page.getByRole("button", { name: "Clear player filter" }).click();
+    await expect(search).toHaveValue("");
+    release();
+    await expect(history.locator("[data-game-id]")).toHaveCount(
+      initialIds.length,
+    );
+    assert.deepEqual(
+      await history
+        .locator("[data-game-id]")
+        .evaluateAll((els) => els.map((el) => el.dataset.gameId)),
+      initialIds,
+    );
+    assert.ok(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <= innerWidth &&
+          document.documentElement.scrollHeight <= innerHeight,
+      ),
+    );
+    assert.deepEqual(errors, []);
+  }
+});

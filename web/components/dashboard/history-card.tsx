@@ -1,23 +1,43 @@
 "use client";
+import { SeasonSelect } from "@/components/season-select";
+import type { Season } from "@/lib/seasons";
 import { useGameHistory } from "@/hooks/use-game-history";
+import { HistoryPlayerFilter } from "@/components/dashboard/history-player-filter";
 import { Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocalizedDateTime } from "@/components/localized-date-time";
-import type { Game, GamePage } from "@/lib/models";
+import type { Game, GamePage, Player } from "@/lib/models";
 
 export const HistoryCard = ({
   initialPage,
+  players,
+  season,
+  seasons,
   copied,
   onCopy,
 }: {
   initialPage: GamePage;
+  season: Season;
+  seasons: Season[];
+  players: Player[];
   copied: boolean;
-  onCopy: () => void;
+  onCopy: (games: Game[], season: Season | null) => void;
 }) => {
-  const { games, hasMore, loading, error, loadMore, rootRef, sentinelRef } =
-    useGameHistory(initialPage);
+  const {
+    games,
+    hasMore,
+    playerId,
+    selectPlayer,
+    seasonId,
+    selectSeason,
+    loading,
+    error,
+    loadMore,
+    rootRef,
+    sentinelRef,
+  } = useGameHistory(initialPage, season.id);
   return (
     <Card className="h-full min-h-0 border-white/8 bg-card/80">
       <CardHeader className="shrink-0 border-b border-white/8">
@@ -31,11 +51,30 @@ export const HistoryCard = ({
             </Badge>
             <CardTitle className="mt-3">Recent games</CardTitle>
           </div>
-          <Button variant="secondary" size="sm" onClick={onCopy}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!games.length}
+            onClick={() =>
+              onCopy(games, seasons.find(({ id }) => id === seasonId) ?? null)
+            }
+          >
             {copied ? <Check /> : <Copy />}{" "}
             {copied ? "Copied" : "Copy for Discord"}
           </Button>
         </div>
+        <SeasonSelect
+          seasons={seasons}
+          value={seasonId}
+          onChange={selectSeason}
+          label="Filter game history by season"
+          allowAll
+        />
+        <HistoryPlayerFilter
+          players={players}
+          playerId={playerId}
+          onChange={selectPlayer}
+        />
       </CardHeader>
       <CardContent
         as="section"
@@ -43,6 +82,7 @@ export const HistoryCard = ({
           rootRef.current = node;
         }}
         aria-label="Recent games list"
+        aria-busy={loading}
         tabIndex={0}
         className="relative min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
@@ -126,7 +166,7 @@ export const HistoryCard = ({
               Retry loading games
             </Button>
           </div>
-        ) : hasMore ? (
+        ) : hasMore || loading ? (
           <Button
             variant="ghost"
             size="sm"
@@ -138,11 +178,15 @@ export const HistoryCard = ({
           </Button>
         ) : (
           <p className="p-2 text-center text-xs text-muted-foreground">
-            {games.length ? "All games loaded" : "No games played yet"}
+            {games.length
+              ? "All games loaded"
+              : playerId !== null
+                ? "No games found for this player"
+                : "No games played yet"}
           </p>
         )}
         <output className="sr-only">
-          {loading ? "Loading older games" : `${games.length} games loaded`}
+          {loading ? "Loading games" : `${games.length} games loaded`}
         </output>
       </CardContent>
     </Card>

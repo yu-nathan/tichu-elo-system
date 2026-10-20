@@ -9,11 +9,7 @@ import {
 import type { ReactNode } from "react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
-import {
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogDescription } from "@/components/ui/dialog";
 import { EloHistoryChart } from "@/components/dashboard/elo-history-chart";
 import { formatPercentage, formatRatio } from "@/lib/format";
 import {
@@ -99,7 +95,7 @@ export const PlayerProfileContent = ({
   const { player } = profile;
   const partnerTitle = tichuPartnerTitle(profile.imHisBitch);
   return (
-    <DialogContent className="max-w-5xl">
+    <>
       <header className="pr-8">
         <div className="flex items-center gap-1">
           <Badge variant="outline" className="border-primary/30 text-primary">
@@ -113,9 +109,6 @@ export const PlayerProfileContent = ({
             to small samples. Percentages show your actual results.
           </InfoTooltip>
         </div>
-        <DialogTitle className="mt-1 break-words text-2xl font-semibold">
-          {player.name}
-        </DialogTitle>
         <DialogDescription className="mt-1 text-sm text-muted-foreground">
           <span className="font-mono font-medium text-primary">
             {player.rating.toFixed(1)} Elo
@@ -227,6 +220,6 @@ export const PlayerProfileContent = ({
           />
         </div>
       </div>
-    </DialogContent>
+    </>
   );
 };

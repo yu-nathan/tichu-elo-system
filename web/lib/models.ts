@@ -1,3 +1,4 @@
+import type { Season } from "./seasons.ts";
 import type {
   EloPlayer,
   EloGame,
@@ -19,6 +20,7 @@ export type Game = EloGame & {
   callStats: GameCallStat[];
 };
 export type AppData = {
+  season: Season;
   players: Player[];
   games: Game[];
   leaderboard: RatingEntry[];
@@ -29,4 +31,14 @@ export type PlayerInput = { code: string; name: string; gender?: PlayerGender };
 export type PlayerUpdate = Partial<PlayerInput> & { archived?: boolean };
 
 export type GamePage = { games: Game[]; nextCursor: string | null };
-export type DashboardData = { leaderboard: RatingEntry[]; history: GamePage };
+export type DashboardData = {
+  season: Season;
+  seasons: Season[];
+  leaderboard: RatingEntry[];
+  history: GamePage;
+};
+export type SeasonStandings = {
+  season: Season;
+  seasons: Season[];
+  leaderboard: RatingEntry[];
+};

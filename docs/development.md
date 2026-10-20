@@ -78,3 +78,38 @@ rollback and alert behavior, and leaves existing players/games unchanged.
 The browser suite also covers the owner controls at mobile/desktop widths and
 API-key rejection by existing admin mutation routes. Production gateway header
 sanitization remains a separate post-deployment check.
+
+## Competitive seasons
+
+`web/lib/seasons.ts` owns the Pacific-time calendar and season IDs. Season 1
+includes all games before January 1, 2027, at midnight Pacific. Thereafter, seasons
+begin every January 1 and July 1. The first season has a null start timestamp;
+all boundaries are inclusive at the start and exclusive at the end.
+
+The dashboard leaderboard header selects current or completed standings. Historical
+links use `/?seasonId=1`; legacy `/seasons` links redirect to the dashboard.
+Matchmaking continues using current ratings regardless of the selected leaderboard.
+
+Ratings and profile statistics replay only that season's games from 1000 Elo.
+There is no rollover migration or cron job: the server clock selects the current
+season on each read. Corrections update the affected historical results. Current
+player names are used in historical views, and archived participants retain their
+historical rankings. Existing game and call-stat records are never reset.
+
+Public read endpoints (all return `Cache-Control: no-store`):
+
+- `GET /api/seasons`: `{ season, seasons }`, current season plus newest-first list.
+- `GET /api/seasons/{id}`: `{ season, seasons, leaderboard }`; completed rankings
+  include participants only, while current standings include all active players.
+- `GET /api/players/{id}/profile?seasonId=1`: the existing profile fields plus
+  `season`, `seasons`, and nullable `rank`. Omitting `seasonId` selects current.
+- `GET /api/games?seasonId=1&playerId=2&cursor=...`: optional season/player filters
+  apply before pagination. Omitting the season returns all seasons.
+- `GET /api/dashboard`: current-season `{ season, seasons, leaderboard, history }`.
+
+Season metadata is `{ id, label, startsAt, endsAt, timezone, status }`. Status is
+`current` or `completed`; malformed, nonexistent, and future season IDs return 400. The separate authenticated `/api/v1/players` and `/api/v1/leaderboard` always
+return current-season statistics; see [external API documentation](external-api.md).
+
+Inject the repository/API clock in tests. Browser rollover tests mock read
+responses and advance the browser clock, without writing saved game data.

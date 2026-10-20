@@ -50,11 +50,20 @@ that can have a fractional part. Timestamps are strings; newly created game date
 are normalized to UTC ISO 8601.
 
 ```ts
+type Season = {
+  id: number;
+  label: string;
+  startsAt: string | null; // Season 1 includes all earlier games.
+  endsAt: string; // Exclusive UTC timestamp.
+  timezone: "America/Los_Angeles";
+  status: "current";
+};
+
 type Player = {
   id: number;
   name: string;
   code: string;
-  rating: number; // Current Elo, calculated from game history.
+  rating: number; // Current-season Elo; starts at 1000 each season.
   archivedAt: string | null; // null means active.
 };
 
@@ -93,7 +102,18 @@ type ErrorResponse = { error: string };
 Read responses exclude creator emails, gender, admin information, and key/security
 metadata. Player IDs link games and call stats to the names and codes returned by
 `GET /players`. An archived player remains in player and leaderboard responses.
-A player without games has a rating of 1000.
+All player ratings and leaderboard statistics are for the **current season**,
+selected by the server clock. Seasons switch at midnight Pacific on January 1
+and July 1. Season 1 includes all earlier games and ends at
+`2027-01-01T08:00:00.000Z`. Every player starts each season at 1000 Elo and zero
+counts, including players with games in past seasons but none in the current one.
+Games belong to seasons by `playedAt`, with the end timestamp excluded. Past-game
+corrections affect only their season unless a date correction moves them into a
+different season. These endpoints do not offer historical-stat selection.
+
+The `season` object in player and leaderboard responses identifies the calculation
+window. If a paginated player read crosses midnight, restart pagination when
+`season.id` changes to avoid combining ratings from different seasons.
 
 ## Get the leaderboard
 
@@ -102,16 +122,24 @@ A player without games has a rating of 1000.
 **200 response schema:**
 
 ```ts
-type LeaderboardResponse = { leaderboard: LeaderboardEntry[] };
+type LeaderboardResponse = { season: Season; leaderboard: LeaderboardEntry[] };
 ```
 
-Returns all players ordered by rating descending, with names breaking rating ties.
-Call counts are totals across game history. This endpoint is not paginated.
+Returns all players ordered by rating descending, with names, then IDs, breaking rating ties.
+Call counts and games played include only current-season games. This endpoint is not paginated.
 
 **Example response:**
 
 ```json
 {
+  "season": {
+    "id": 1,
+    "label": "Season 1",
+    "startsAt": null,
+    "endsAt": "2027-01-01T08:00:00.000Z",
+    "timezone": "America/Los_Angeles",
+    "status": "current"
+  },
   "leaderboard": [
     {
       "id": 1,
@@ -140,17 +168,29 @@ Call counts are totals across game history. This endpoint is not paginated.
 **200 response schema:**
 
 ```ts
-type PlayersResponse = { players: Player[]; nextCursor: string | null };
+type PlayersResponse = {
+  season: Season;
+  players: Player[];
+  nextCursor: string | null;
+};
 ```
 
 Returns at most 50 players per page, ordered by ID ascending. Each entry includes
-name, code, and current Elo (`rating`), using the same game replay as the
+name, code, and current-season Elo (`rating`), using the same game replay as the
 leaderboard. Archived players remain in the list with their current rating.
 
 **Example response:**
 
 ```json
 {
+  "season": {
+    "id": 1,
+    "label": "Season 1",
+    "startsAt": null,
+    "endsAt": "2027-01-01T08:00:00.000Z",
+    "timezone": "America/Los_Angeles",
+    "status": "current"
+  },
   "players": [
     {
       "id": 1,
@@ -169,6 +209,8 @@ it is `null`. Use `URLSearchParams` to encode query values. There is no configur
 page size; an exhausted page returns `players: []` and `nextCursor: null`.
 
 ## List games
+
+Game records span all seasons. Seasonal resets never remove historical games.
 
 `GET /games?cursor=...` — no request body.
 

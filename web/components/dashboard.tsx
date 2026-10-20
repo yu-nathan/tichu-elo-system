@@ -1,6 +1,8 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, Settings, Sparkles } from "lucide-react";
+import { useSeasonRefresh } from "@/hooks/use-season-refresh";
+import { fetchDashboard, fetchSeasonStandings } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Tabs } from "@base-ui/react/tabs";
 import { Button } from "@/components/ui/button";
@@ -11,10 +13,11 @@ import { ThemeControls } from "@/components/dashboard/theme-controls";
 import { useSiteTheme } from "@/components/seasonal-theme-provider";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { discordHistory, discordLeaderboard } from "@/lib/discord";
-import type { DashboardData } from "@/lib/models";
+import type { DashboardData, SeasonStandings } from "@/lib/models";
 
 type Props = {
   data: DashboardData;
+  initialSeasonId: number | null;
   userEmail: string | null;
   isAdmin: boolean;
   canPreviewThemes: boolean;
@@ -23,19 +26,76 @@ type Props = {
 };
 
 export const Dashboard = ({
-  data,
+  data: initialData,
+  initialSeasonId,
   userEmail,
   isAdmin,
   canPreviewThemes,
   signInHref,
   signOutHref,
 }: Props) => {
+  const [data, setData] = useState(initialData);
+  // Null follows the current season across rollover; historical selections stay fixed.
+  const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(
+    initialSeasonId === initialData.season.id ? null : initialSeasonId,
+  );
+  const selectedSeason =
+    data.seasons.find(({ id }) => id === selectedSeasonId) ?? data.season;
+  const historical = selectedSeason.id !== data.season.id;
+  const [standings, setStandings] = useState<SeasonStandings | null>(null);
+  const [standingsError, setStandingsError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    setStandingsError(null);
+    setStandings(null);
+    if (!historical) return;
+    const controller = new AbortController();
+    void fetchSeasonStandings(selectedSeason.id, controller.signal)
+      .then((next) => {
+        if (!controller.signal.aborted) setStandings(next);
+      })
+      .catch((error: Error) => {
+        if (!controller.signal.aborted) setStandingsError(error.message);
+      });
+    return () => controller.abort();
+  }, [selectedSeason.id, historical, attempt, data]);
+  const selectSeason = (id: number) => {
+    setSelectedSeasonId(id === data.season.id ? null : id);
+    const url = new URL(window.location.href);
+    if (id === data.season.id) url.searchParams.delete("seasonId");
+    else url.searchParams.set("seasonId", String(id));
+    window.history.replaceState(null, "", url);
+  };
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const refreshRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => refreshRequest.current?.abort(), []);
+  const refresh = () => {
+    refreshRequest.current?.abort();
+    const controller = new AbortController();
+    refreshRequest.current = controller;
+    void fetchDashboard(controller.signal)
+      .then((next) => {
+        if (!controller.signal.aborted) {
+          setData(next);
+          setRefreshError(null);
+        }
+      })
+      .catch((error: Error) => {
+        if (!controller.signal.aborted) setRefreshError(error.message);
+      });
+  };
+  useSeasonRefresh(data.season, refresh);
   const season = useSiteTheme();
   const [view, setView] = useState("leaderboard");
   const active = useMemo(
     () => data.leaderboard.filter((player) => !player.archivedAt),
     [data.leaderboard],
   );
+  const selectedStandings = historical
+    ? standings?.season.id === selectedSeason.id
+      ? standings
+      : null
+    : { ...data, leaderboard: active };
   const { copied, error, copy } = useClipboard();
   return (
     <main className="h-dvh overflow-hidden text-foreground">
@@ -94,6 +154,14 @@ export const Dashboard = ({
           </div>
         </header>
 
+        {refreshError && (
+          <div role="alert" className="mb-3 text-sm">
+            {refreshError}{" "}
+            <Button size="sm" variant="outline" onClick={refresh}>
+              Refresh standings
+            </Button>
+          </div>
+        )}
         {error ? (
           <p role="alert" className="mb-4 text-sm">
             {error}
@@ -141,10 +209,22 @@ export const Dashboard = ({
               )}
             >
               <LeaderboardCard
-                active={active}
+                active={selectedStandings?.leaderboard ?? []}
+                season={selectedSeason}
+                onSeasonChange={selectSeason}
+                loading={!selectedStandings && !standingsError}
+                error={historical ? standingsError : null}
+                onRetry={() => setAttempt((value) => value + 1)}
+                seasons={data.seasons}
                 theme={season.theme}
                 copied={copied === "leaderboard"}
-                onCopy={() => copy("leaderboard", discordLeaderboard(data))}
+                onCopy={() => {
+                  if (selectedStandings)
+                    void copy(
+                      "leaderboard",
+                      discordLeaderboard(selectedStandings),
+                    );
+                }}
               />
             </Tabs.Panel>
             <Tabs.Panel
@@ -170,10 +250,17 @@ export const Dashboard = ({
               )}
             >
               <HistoryCard
+                key={data.season.id}
+                season={data.season}
+                seasons={data.seasons}
                 initialPage={data.history}
+                players={data.leaderboard}
                 copied={copied === "history"}
-                onCopy={() =>
-                  copy("history", discordHistory({ games: data.history.games }))
+                onCopy={(games, selectedSeason) =>
+                  copy(
+                    "history",
+                    discordHistory({ games, season: selectedSeason }),
+                  )
                 }
               />
             </Tabs.Panel>

@@ -117,3 +117,62 @@ test("mutation failures preserve inputs and skip the refresh", async () => {
     { saved: true, data },
   );
 });
+
+test("history client retains the player filter across pages and supports cancellation", async (context) => {
+  const { fetchGamePage } = await import("../lib/api-client.ts");
+  const requests: { url: unknown; options?: RequestInit }[] = [];
+  context.mock.method(
+    globalThis,
+    "fetch",
+    async (url: unknown, options?: RequestInit) => {
+      requests.push({ url, options });
+      return Response.json({ games: [], nextCursor: null });
+    },
+  );
+  const { signal } = new AbortController();
+  await fetchGamePage(null, signal, 3);
+  await fetchGamePage("a+/=", signal, 3);
+  await fetchGamePage(null, signal);
+  assert.deepEqual(
+    requests.map(({ url }) => url),
+    [
+      "/api/games?playerId=3",
+      "/api/games?cursor=a%2B%2F%3D&playerId=3",
+      "/api/games",
+    ],
+  );
+  assert.ok(
+    requests.every(
+      ({ options }) =>
+        options?.signal === signal && options.cache === "no-store",
+    ),
+  );
+});
+
+test("history client combines season and player filters on every cursor request", async (context) => {
+  const { fetchGamePage, fetchPlayerProfile } =
+    await import("../lib/api-client.ts");
+  const urls: string[] = [];
+  context.mock.method(globalThis, "fetch", async (url: string) => {
+    urls.push(url);
+    return Response.json(
+      url.includes("/profile")
+        ? {
+            player: { id: 3 },
+            history: [],
+            season: { id: 1 },
+            seasons: [{ id: 1 }],
+          }
+        : { games: [], nextCursor: null },
+    );
+  });
+  const { signal } = new AbortController();
+  await fetchGamePage(null, signal, 3, 2);
+  await fetchGamePage("cursor", signal, 3, 2);
+  await fetchPlayerProfile(3, signal, 1);
+  assert.deepEqual(urls, [
+    "/api/games?playerId=3&seasonId=2",
+    "/api/games?cursor=cursor&playerId=3&seasonId=2",
+    "/api/players/3/profile?seasonId=1",
+  ]);
+});

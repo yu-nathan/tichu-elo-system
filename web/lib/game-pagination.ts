@@ -3,6 +3,13 @@ import { InputError } from "./input.ts";
 export const GAME_PAGE_SIZE = 20;
 export type GameCursor = { playedAt: string; id: number };
 
+export const parseHistoryPlayerId = (value: string | null): number | null => {
+  if (value === null) return null;
+  if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)))
+    throw new InputError("Invalid game history player ID.");
+  return Number(value);
+};
+
 export const encodeGameCursor = ({ playedAt, id }: GameCursor) =>
   btoa(JSON.stringify({ playedAt, id }));
 

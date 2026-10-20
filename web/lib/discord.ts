@@ -1,10 +1,13 @@
+import type { Season } from "./seasons.ts";
 import { formatRatio } from "./format.ts";
 import type { AppData } from "./models.ts";
 
 export const discordLeaderboard = (
-  data: Pick<AppData, "leaderboard">,
+  data: Pick<AppData, "leaderboard"> & { season?: Season },
 ): string => {
-  const active = data.leaderboard.filter((player) => !player.archivedAt);
+  const active = data.leaderboard.filter(
+    (player) => data.season?.status === "completed" || !player.archivedAt,
+  );
   const nameWidth = Math.max(12, ...active.map((player) => player.name.length));
   const top = `╔${"═".repeat(6)}╦${"═".repeat(nameWidth + 2)}╦${"═".repeat(10)}╦${"═".repeat(7)}╦${"═".repeat(7)}╦${"═".repeat(7)}╗`;
   const middle = `╠${"═".repeat(6)}╬${"═".repeat(nameWidth + 2)}╬${"═".repeat(10)}╬${"═".repeat(7)}╬${"═".repeat(7)}╬${"═".repeat(7)}╣`;
@@ -28,10 +31,19 @@ export const discordLeaderboard = (
     bottom,
     "```",
   ];
-  return rows.join("\n");
+  return [
+    data.season
+      ? `${data.season.label} · ${data.season.status === "completed" ? "Final standings" : "Current standings"}`
+      : null,
+    ...rows,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 };
 
-export const discordHistory = (data: Pick<AppData, "games">): string => {
+export const discordHistory = (
+  data: Pick<AppData, "games"> & { season?: Season | null },
+): string => {
   const games = [...data.games]
     .sort(
       (a, b) => Date.parse(a.playedAt) - Date.parse(b.playedAt) || a.id - b.id,
@@ -51,5 +63,14 @@ export const discordHistory = (data: Pick<AppData, "games">): string => {
     "╚═════╩════╩════════╩════╩════════╝",
     "```",
   ];
-  return rows.join("\n");
+  return [
+    data.season === undefined
+      ? null
+      : data.season === null
+        ? "All seasons"
+        : data.season.label,
+    ...rows,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 };

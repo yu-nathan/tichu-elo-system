@@ -1,3 +1,4 @@
+import type { Season } from "./seasons.ts";
 import {
   calculateRatingHistory,
   type EloGame,
@@ -199,4 +200,10 @@ export const calculatePlayerProfile = (
       ({ games }) => games >= MIN_PARTNER_GAMES,
     ),
   };
+};
+
+export type SeasonalPlayerProfile = PlayerProfile & {
+  season: Season;
+  seasons: Season[];
+  rank: number | null;
 };

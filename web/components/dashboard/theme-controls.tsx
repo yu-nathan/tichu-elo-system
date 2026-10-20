@@ -146,22 +146,6 @@ export const ThemeControls = ({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
-        {season.theme !== "default" ? (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={motionLabel}
-            title={motionLabel}
-            disabled={season.reducedMotion}
-            onClick={season.toggleMotion}
-          >
-            {season.motionEnabled && !season.reducedMotion ? (
-              <Pause />
-            ) : (
-              <Play />
-            )}
-          </Button>
-        ) : null}
         <Button
           size="sm"
           variant={season.colorBlindMode ? "secondary" : "outline"}
@@ -184,6 +168,22 @@ export const ThemeControls = ({
           <Palette className="hidden sm:block" />
           {useDefault ? "Use default theme" : "Use seasonal theme"}
         </Button>
+        {season.theme !== "default" ? (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={motionLabel}
+            title={motionLabel}
+            disabled={season.reducedMotion}
+            onClick={season.toggleMotion}
+          >
+            {season.motionEnabled && !season.reducedMotion ? (
+              <Pause />
+            ) : (
+              <Play />
+            )}
+          </Button>
+        ) : null}
       </div>
     </>
   );

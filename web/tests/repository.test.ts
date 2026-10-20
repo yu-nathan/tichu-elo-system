@@ -68,7 +68,7 @@ test("gender migration preserves existing data and backfills Rebekah S. only", (
 
 test("player genders survive reads, creation, renames and archiving", async (context) => {
   const { db } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   const original = await repository.getAppData();
   assert.equal(
     original.players.find(({ name }) => name === "Rebekah S.")?.gender,
@@ -114,7 +114,7 @@ test("player genders survive reads, creation, renames and archiving", async (con
 
 test("deleted imported games stay deleted across reads and subsequent writes", async (context) => {
   const { db } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   await repository.deleteGame(1);
   assert.equal(
     (await repository.getAppData()).games.some(({ id }) => id === 1),
@@ -126,7 +126,7 @@ test("deleted imported games stay deleted across reads and subsequent writes", a
 
 test("a deleted seed code can be reused without a read restoring its original owner", async (context) => {
   const { db } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   await repository.updatePlayer(1, { code: "CB" });
   await repository.createPlayer({ code: "C", name: "New C" });
   const data = await repository.getAppData();
@@ -136,7 +136,7 @@ test("a deleted seed code can be reused without a read restoring its original ow
 
 test("creates, replaces and removes per-player stats with the game", async (context) => {
   const { db, sqlite } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   await repository.createGame(input, "owner@example.com");
   const game = (await repository.getAppData()).games.at(-1)!;
   assert.equal(game.callStats.length, 4);
@@ -162,7 +162,7 @@ test("creates, replaces and removes per-player stats with the game", async (cont
 
 test("failed call-stat creation rolls back the game insert", async (context) => {
   const { db, sqlite } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   const before = await repository.getAppData();
   sqlite.exec(
     "CREATE TRIGGER fail_stats BEFORE INSERT ON game_player_stats BEGIN SELECT RAISE(ABORT, 'injected failure'); END",
@@ -176,7 +176,7 @@ test("failed call-stat creation rolls back the game insert", async (context) => 
 
 test("failed call-stat replacement rolls back scores and existing call stats", async (context) => {
   const { db, sqlite } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   await repository.updateGame(1, input);
   const before = await repository.getAppData();
   sqlite.exec(
@@ -191,7 +191,7 @@ test("failed call-stat replacement rolls back scores and existing call stats", a
 
 test("missing games and archived new-game players fail without changing stored data", async (context) => {
   const { db } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   await repository.updatePlayer(1, { archived: true });
   const before = await repository.getAppData();
   await assert.rejects(
@@ -205,7 +205,7 @@ test("missing games and archived new-game players fail without changing stored d
 
 test("duplicate player codes are validation errors, while DB faults remain server errors", async (context) => {
   const { db, sqlite } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   await assert.rejects(
     repository.createPlayer({ code: "C", name: "Duplicate" }),
     InputError,
@@ -225,7 +225,7 @@ test("duplicate player codes are validation errors, while DB faults remain serve
 
 test("history pages use chronological cursors, bounded call stats, and include games beyond ten", async (context) => {
   const { db, sqlite } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   for (let index = 0; index < 46; index += 1) {
     await repository.createGame(
       {
@@ -262,7 +262,7 @@ test("history pages use chronological cursors, bounded call stats, and include g
 
 test("history cursors survive deleting their anchor and inserting newer games", async (context) => {
   const { db } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   for (let index = 0; index < 22; index += 1)
     await repository.createGame(input, "test");
   const first = await repository.getGamePage();
@@ -284,7 +284,7 @@ test("history cursors survive deleting their anchor and inserting newer games", 
 
 test("dashboard payload is bounded while ratings and lazy profiles retain full history after edits and deletes", async (context) => {
   const { db } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   for (let index = 0; index < 24; index += 1)
     await repository.createGame(input, "test");
   const { calculatePlayerProfile } = await import("../lib/player-profile.ts");
@@ -301,18 +301,24 @@ test("dashboard payload is bounded while ratings and lazy profiles retain full h
     assert.equal(dashboard.history.games.length, 20);
     assert.equal("games" in dashboard, false);
     assert.equal("players" in dashboard, false);
-    for (const player of full.players)
+    for (const player of full.players) {
+      const result = await repository.getPlayerProfile(player.id);
+      const { season, seasons, rank, ...profile } = result!;
+      assert.equal(season.id, 1);
+      assert.equal(seasons.length, 1);
+      assert.ok(rank === null || rank > 0);
       assert.deepEqual(
-        await repository.getPlayerProfile(player.id),
+        profile,
         calculatePlayerProfile(full.players, full.games, player.id),
       );
+    }
   }
   assert.equal(await repository.getPlayerProfile(999), null);
 });
 
 test("history pagination rejects malformed cursors and handles empty and exact-size pages", async (context) => {
   const { db, sqlite } = createDatabase(context);
-  const repository = createRepository(db);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
   for (const cursor of [
     "",
     "bad",
@@ -333,4 +339,52 @@ test("history pagination rejects malformed cursors and handles empty and exact-s
   for (let index = 0; index < 20; index += 1)
     await repository.createGame(input, "test");
   assert.equal((await repository.getGamePage()).nextCursor, null);
+});
+
+test("player history filters every seat before pagination, including archived players", async (context) => {
+  const { db } = createDatabase(context);
+  const repository = createRepository(db, () => Date.UTC(2026, 9, 19));
+  const seats = [
+    "teamAPlayer1Id",
+    "teamAPlayer2Id",
+    "teamBPlayer1Id",
+    "teamBPlayer2Id",
+  ] as const;
+  for (let index = 0; index < 48; index += 1) {
+    const ids = [2, 3, 4, 5];
+    if (index % 2 === 0) ids[(index / 2) % 4] = 1;
+    await repository.createGame(
+      {
+        ...input,
+        ...Object.fromEntries(seats.map((seat, i) => [seat, ids[i]])),
+        callStats: ids.map((playerId) => ({ ...input.callStats[0], playerId })),
+      },
+      "test",
+    );
+  }
+  await repository.updatePlayer(1, { archived: true });
+  const expected = (await repository.getAppData()).games
+    .filter((game) => seats.some((seat) => game[seat] === 1))
+    .reverse();
+  const seen = [];
+  let cursor: string | null = null;
+  do {
+    const page = await repository.getGamePage(cursor, 1);
+    assert.ok(page.games.length <= 20);
+    seen.push(...page.games);
+    cursor = page.nextCursor;
+  } while (cursor);
+  assert.ok(seen.length > 20);
+  for (const game of expected)
+    game.callStats.sort((a, b) => a.playerId - b.playerId);
+  assert.deepEqual(seen, expected);
+  assert.deepEqual(await repository.getGamePage(null, 999), {
+    games: [],
+    nextCursor: null,
+  });
+  for (const playerId of [0, -1, 1.5, NaN, Infinity])
+    await assert.rejects(
+      repository.getGamePage(null, playerId),
+      /Invalid game history player ID/,
+    );
 });

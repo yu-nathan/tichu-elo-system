@@ -16,7 +16,12 @@ export const deleteGame = (id: number) =>
 
 export const getDashboardData = () =>
   createRepository(env.DB).getDashboardData();
-export const getGamePage = (cursor: string | null = null) =>
-  createRepository(env.DB).getGamePage(cursor);
-export const getPlayerProfile = (id: number) =>
-  createRepository(env.DB).getPlayerProfile(id);
+export const getGamePage = (
+  cursor: string | null = null,
+  playerId: number | null = null,
+  seasonId: number | null = null,
+) => createRepository(env.DB).getGamePage(cursor, playerId, seasonId);
+export const getPlayerProfile = (id: number, seasonId: number | null = null) =>
+  createRepository(env.DB).getPlayerProfile(id, seasonId);
+export const getSeasonStandings = (seasonId: number | null = null) =>
+  createRepository(env.DB).getSeasonStandings(seasonId);

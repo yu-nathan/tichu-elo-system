@@ -10,14 +10,34 @@ import { getDashboardData } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-const Home = async () => {
+const Home = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{ seasonId?: string }>;
+}) => {
   const [data, user, admin] = await Promise.all([
     getDashboardData(),
     getChatGPTUser(),
     getAdmin(),
   ]);
+  const requested = (await searchParams).seasonId;
+  const selectedSeason =
+    requested === undefined
+      ? null
+      : data.seasons.find(({ id }) => String(id) === requested);
+  if (selectedSeason === undefined) {
+    return (
+      <main className="p-6">
+        <h1 className="text-2xl">Season unavailable</h1>
+        <a href="/" className="mt-4 inline-block text-primary">
+          View current leaderboard
+        </a>
+      </main>
+    );
+  }
   return (
     <Dashboard
+      initialSeasonId={selectedSeason?.id ?? null}
       data={data}
       userEmail={user?.email ?? null}
       isAdmin={Boolean(admin)}

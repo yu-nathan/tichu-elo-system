@@ -16,7 +16,7 @@ export const PlayerProfileSkeleton = ({ name }: { name: string }) => (
         {name}
       </DialogTitle>
       <DialogDescription className="sr-only">
-        Lifetime player statistics and Elo history.
+        Season player statistics and Elo history.
       </DialogDescription>
       <Skeleton aria-hidden="true" className="mt-1 h-5 w-48 max-w-full" />
     </header>

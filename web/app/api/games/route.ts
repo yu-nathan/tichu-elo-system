@@ -1,7 +1,9 @@
+import { parseSeasonId } from "@/lib/seasons";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { requireAdminApi } from "@/lib/admin";
 import { createGame, getGamePage } from "@/lib/store";
+import { parseHistoryPlayerId } from "@/lib/game-pagination";
 
 export const POST = async (request: Request) => {
   try {
@@ -17,8 +19,13 @@ export const POST = async (request: Request) => {
 
 export const GET = async (request: Request) => {
   try {
+    const params = new URL(request.url).searchParams;
     return Response.json(
-      await getGamePage(new URL(request.url).searchParams.get("cursor")),
+      await getGamePage(
+        params.get("cursor"),
+        parseHistoryPlayerId(params.get("playerId")),
+        parseSeasonId(params.get("seasonId")),
+      ),
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

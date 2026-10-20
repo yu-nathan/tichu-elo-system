@@ -1,3 +1,5 @@
+import type { RatingEntry } from "../lib/elo.ts";
+import type { Season } from "../lib/seasons.ts";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createDatabase } from "./helpers/database.ts";
@@ -221,7 +223,7 @@ test("external reads require a valid key and expose only game data, never identi
 
 test("external methods, admin paths, overrides and injected update fields cannot modify existing records", async (context) => {
   const f = await fixture(context);
-  const before = await createRepository(f.db).getAppData();
+  const before = await createRepository(f.db, () => start).getAppData();
   for (const method of ["PATCH", "PUT", "DELETE", "OPTIONS", "HEAD"]) {
     assert.equal((await f.request("/api/v1/games", { method })).status, 405);
     assert.equal((await f.request("/api/v1/games/1", { method })).status, 404);
@@ -246,7 +248,10 @@ test("external methods, admin paths, overrides and injected update fields cannot
     ).status,
     400,
   );
-  assert.deepEqual(await createRepository(f.db).getAppData(), before);
+  assert.deepEqual(
+    await createRepository(f.db, () => start).getAppData(),
+    before,
+  );
 });
 
 test("create responses return IDs; concurrent retries create exactly one player and game, including call stats", async (context) => {
@@ -339,7 +344,7 @@ test("idempotency ignores object field order, expires after 24 hours, and remain
 test("failed game/stat or alert writes roll back records and idempotency together", async (context) => {
   const f = await fixture(context);
   for (const table of ["game_player_stats", "api_writes"]) {
-    const before = await createRepository(f.db).getAppData();
+    const before = await createRepository(f.db, () => start).getAppData();
     f.sqlite.exec(
       `CREATE TRIGGER failure BEFORE INSERT ON ${table} BEGIN SELECT RAISE(ABORT, 'injected sensitive failure'); END`,
     );
@@ -349,7 +354,10 @@ test("failed game/stat or alert writes roll back records and idempotency togethe
     });
     assert.equal(response.status, 503);
     assert.doesNotMatch(await response.text(), /sensitive/);
-    assert.deepEqual(await createRepository(f.db).getAppData(), before);
+    assert.deepEqual(
+      await createRepository(f.db, () => start).getAppData(),
+      before,
+    );
     assert.equal(
       f.sqlite.prepare("SELECT COUNT(*) AS n FROM api_idempotency").get()?.n,
       0,
@@ -567,7 +575,7 @@ test("creation transaction checks revocation atomically even after initial authe
   );
   await f.store.revoke(f.issued.info.id, start);
   await assert.rejects(
-    createRepository(f.db).createGame(game, "api-key", hooks),
+    createRepository(f.db, () => start).createGame(game, "api-key", hooks),
   );
   assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM games").get()?.n, 9);
   assert.equal(
@@ -628,7 +636,7 @@ test("storage errors fail closed and cleanup preserves leaderboard records", asy
   assert.equal((await f.request("/api/v1/games", { body: game })).status, 503);
   assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM games").get()?.n, 9);
   const second = await fixture(context);
-  const before = await createRepository(second.db).getAppData();
+  const before = await createRepository(second.db, () => start).getAppData();
   await second.store.admitRead(second.issued.info.id, start);
   await second.store.admitWrite(second.issued.info, "games", start);
   await second.store.recordBlocked(second.issued.info, "games", start);
@@ -657,7 +665,10 @@ test("storage errors fail closed and cleanup preserves leaderboard records", asy
       ?.n,
     0,
   );
-  assert.deepEqual(await createRepository(second.db).getAppData(), before);
+  assert.deepEqual(
+    await createRepository(second.db, () => start).getAppData(),
+    before,
+  );
 });
 
 test("alerts include all triggering writes across a 15-minute incident boundary", async (context) => {
@@ -685,9 +696,64 @@ test("automatic revocation survives a failure to persist the alert", async (cont
   assert.equal((await f.request("/api/v1/players")).status, 401);
 });
 
+test("player reads include identity and current Elo, including new and archived players", async (context) => {
+  const f = await fixture(context);
+  const repository = createRepository(f.db, () => start);
+  const newId = await repository.createPlayer({
+    code: "NEW",
+    name: "New Player",
+  });
+  const readPlayers = async () => {
+    const response = await f.request("/api/v1/players");
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      players: {
+        id: number;
+        name: string;
+        code: string;
+        rating: number;
+        archivedAt: string | null;
+      }[];
+    };
+    return body.players;
+  };
+  const before = await readPlayers();
+  assert.deepEqual(
+    before.find(({ id }) => id === newId),
+    {
+      id: newId,
+      name: "New Player",
+      code: "NEW",
+      rating: 1000,
+      archivedAt: null,
+    },
+  );
+  assert.equal((await f.request("/api/v1/games", { body: game })).status, 201);
+  await repository.updatePlayer(1, { archived: true });
+  const after = await readPlayers();
+  const { leaderboard } = await repository.getDashboardData();
+  assert.deepEqual(
+    after,
+    leaderboard
+      .sort((a, b) => a.id - b.id)
+      .map(({ id, name, code, rating, archivedAt }) => ({
+        id,
+        name,
+        code,
+        rating,
+        archivedAt,
+      })),
+  );
+  assert.notEqual(
+    after.find(({ id }) => id === 1)!.rating,
+    before.find(({ id }) => id === 1)!.rating,
+  );
+  assert.ok(after.find(({ id }) => id === 1)!.archivedAt);
+});
+
 test("player pagination is bounded and stable without exposing internal fields", async (context) => {
   const f = await fixture(context);
-  const repository = createRepository(f.db);
+  const repository = createRepository(f.db, () => start);
   for (let index = 0; index < 55; index++)
     await repository.createPlayer({
       code: `X${index}`,
@@ -705,10 +771,16 @@ test("player pagination is bounded and stable without exposing internal fields",
     );
     assert.equal(response.status, 200);
     const page = (await response.json()) as {
-      players: { id: number }[];
+      players: { id: number; name: string; code: string; rating: number }[];
       nextCursor: string | null;
     };
     assert.ok(page.players.length <= 50);
+    for (const player of page.players) {
+      assert.equal(typeof player.name, "string");
+      assert.equal(typeof player.code, "string");
+      assert.equal(typeof player.rating, "number");
+      if (player.code.startsWith("X")) assert.equal(player.rating, 1000);
+    }
     seen.push(...page.players.map(({ id }) => id));
     cursor = page.nextCursor;
   } while (cursor !== null);
@@ -717,7 +789,7 @@ test("player pagination is bounded and stable without exposing internal fields",
 
 test("API rejects duplicate player codes after normalization, including archived players", async (context) => {
   const f = await fixture(context);
-  const repository = createRepository(f.db);
+  const repository = createRepository(f.db, () => start);
   const original = await repository.getAppData();
   const player = original.players.find(({ id }) => id === 1)!;
   for (const code of [
@@ -758,7 +830,7 @@ test("API rejects duplicate player codes after normalization, including archived
 test("concurrent API requests with different keys cannot create duplicate normalized player codes", async (context) => {
   const f = await fixture(context);
   const second = await f.store.generateKey("Other scorekeeper", start);
-  const before = await createRepository(f.db).getAppData();
+  const before = await createRepository(f.db, () => start).getAppData();
   const responses = await Promise.all(
     [
       { code: "z9", key: f.issued.key },
@@ -780,7 +852,7 @@ test("concurrent API requests with different keys cannot create duplicate normal
     assert.deepEqual(await response.json(), {
       error: "That player code is already in use.",
     });
-  const after = await createRepository(f.db).getAppData();
+  const after = await createRepository(f.db, () => start).getAppData();
   const created = after.players.filter(({ code }) => code === "Z9");
   assert.equal(created.length, 1);
   assert.equal(after.players.length, before.players.length + 1);
@@ -795,4 +867,98 @@ test("concurrent API requests with different keys cannot create duplicate normal
   );
   const successful = responses.find(({ status }) => status === 201)!;
   assert.deepEqual(await successful.json(), { id: created[0].id });
+});
+
+test("external stats switch at Pacific midnight, agree across endpoints, and isolate historical corrections", async (context) => {
+  const f = await fixture(context);
+  f.sqlite.exec("DELETE FROM games");
+  type Standings = { season: Season; leaderboard: RatingEntry[] };
+  type Players = { season: Season; players: RatingEntry[] };
+  const boundary = Date.parse("2027-01-01T08:00:00.000Z");
+  const repository = createRepository(f.db, () => boundary);
+  const oldId = await repository.createGame(
+    { ...game, playedAt: "2026-12-31T23:59:59-08:00" },
+    "test",
+  );
+  f.setTime(boundary - 1);
+  const before = (await (
+    await f.request("/api/v1/leaderboard")
+  ).json()) as Standings;
+  assert.equal(before.season.id, 1);
+  assert.equal(
+    before.leaderboard.find((p: { id: number }) => p.id === 1)!.rating,
+    1016,
+  );
+  f.setTime(boundary);
+  const reset = (await (
+    await f.request("/api/v1/leaderboard")
+  ).json()) as Standings;
+  const players = (await (
+    await f.request("/api/v1/players")
+  ).json()) as Players;
+  assert.equal(reset.season.id, 2);
+  assert.deepEqual(players.season, reset.season);
+  assert.ok(
+    players.players.every((p: { rating: number }) => p.rating === 1000),
+  );
+  for (const p of reset.leaderboard) {
+    assert.equal(p.rating, 1000);
+    for (const key of [
+      "gamesPlayed",
+      "grandTichus",
+      "successfulGrandTichus",
+      "tichus",
+      "successfulTichus",
+    ] as const)
+      assert.equal(p[key], 0);
+  }
+  await repository.updateGame(oldId, { ...game, scoreA: 0, scoreB: 1000 });
+  assert.deepEqual(
+    await (await f.request("/api/v1/leaderboard")).json(),
+    reset,
+  );
+  const created = await f.request("/api/v1/games", {
+    body: { ...game, playedAt: "2027-01-01T00:00:00-08:00" },
+  });
+  assert.equal(created.status, 201);
+  const live = (await (
+    await f.request("/api/v1/leaderboard")
+  ).json()) as Standings;
+  const player = live.leaderboard.find((p: { id: number }) => p.id === 1)!;
+  const profile = (await repository.getPlayerProfile(1))!;
+  assert.equal(player.rating, profile.player.rating);
+  assert.equal(player.gamesPlayed, 1);
+  assert.equal(player.tichus, 2);
+  assert.equal(player.successfulTichus, 1);
+  assert.equal(player.grandTichus, 1);
+  assert.equal(player.successfulGrandTichus, 1);
+  assert.equal(
+    (await repository.getDashboardData()).leaderboard.find(({ id }) => id === 1)
+      ?.rating,
+    player.rating,
+  );
+  const list = (await (
+    await f.request("/api/v1/players?seasonId=1")
+  ).json()) as Players;
+  assert.equal(list.season.id, 2);
+  assert.equal(
+    list.players.find((p: { id: number }) => p.id === 1)!.rating,
+    player.rating,
+  );
+  const games = (await (await f.request("/api/v1/games")).json()) as {
+    games: unknown[];
+  };
+  assert.equal(games.games.length, 2);
+  // A correction crossing the boundary now updates current-season statistics.
+  await repository.updateGame(oldId, {
+    ...game,
+    playedAt: "2027-01-01T00:01:00-08:00",
+  });
+  const moved = (await (
+    await f.request("/api/v1/leaderboard")
+  ).json()) as Standings;
+  assert.equal(
+    moved.leaderboard.find((p: { id: number }) => p.id === 1)!.gamesPlayed,
+    2,
+  );
 });

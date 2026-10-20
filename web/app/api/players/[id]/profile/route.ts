@@ -1,12 +1,16 @@
+import { parseSeasonId } from "@/lib/seasons";
 import { apiErrorResponse, parseRecordId } from "@/lib/api-errors";
 import { getPlayerProfile } from "@/lib/store";
 
 export const GET = async (
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) => {
   try {
-    const profile = await getPlayerProfile(parseRecordId((await params).id));
+    const profile = await getPlayerProfile(
+      parseRecordId((await params).id),
+      parseSeasonId(new URL(request.url).searchParams.get("seasonId")),
+    );
     return Response.json(profile ?? { error: "Player not found." }, {
       status: profile ? 200 : 404,
       headers: { "Cache-Control": "no-store" },

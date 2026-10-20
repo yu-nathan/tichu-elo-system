@@ -1,3 +1,4 @@
+import { getCurrentSeason } from "./seasons.ts";
 import { createRepository } from "./repository.ts";
 import { InputError, requireRecord } from "./input.ts";
 import {
@@ -88,7 +89,7 @@ export const createExternalApi =
         return apiJson({ error: "Method not allowed." }, 405, {
           Allow: allowed.join(", "),
         });
-      const repository = createRepository(db);
+      const repository = createRepository(db, () => now);
       if (request.method === "GET") {
         if (resource === "players") {
           const cursor = url.searchParams.get("cursor");
@@ -98,19 +99,21 @@ export const createExternalApi =
               !Number.isSafeInteger(Number(cursor)))
           )
             throw new ApiFailure(400, "Invalid player cursor.");
-          const { results } = await db
-            .prepare(
-              "SELECT id, code, name, archived_at AS archivedAt FROM players WHERE id > ? ORDER BY id LIMIT 51",
-            )
-            .bind(cursor === null ? 0 : Number(cursor))
-            .all<{
-              id: number;
-              code: string;
-              name: string;
-              archivedAt: string | null;
-            }>();
-          const players = results.slice(0, 50);
+          const results = (await repository.getPlayerRatings())
+            .filter(({ id }) => id > (cursor === null ? 0 : Number(cursor)))
+            .sort((a, b) => a.id - b.id)
+            .slice(0, 51);
+          const players = results
+            .slice(0, 50)
+            .map(({ id, code, name, archivedAt, rating }) => ({
+              id,
+              code,
+              name,
+              archivedAt,
+              rating,
+            }));
           return apiJson({
+            season: getCurrentSeason(now),
             players,
             nextCursor: results.length > 50 ? String(players.at(-1)!.id) : null,
           });
@@ -134,8 +137,9 @@ export const createExternalApi =
             nextCursor: page.nextCursor,
           });
         }
-        const { leaderboard } = await repository.getDashboardData();
+        const { leaderboard, season } = await repository.getDashboardData();
         return apiJson({
+          season,
           leaderboard: leaderboard.map((player) => ({
             id: player.id,
             code: player.code,

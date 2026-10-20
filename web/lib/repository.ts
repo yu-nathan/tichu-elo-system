@@ -1,3 +1,12 @@
+import {
+  getCurrentSeason,
+  getSeason,
+  getSeasons,
+  isInSeason,
+  rankedPlayers,
+  sortRatings,
+  type Season,
+} from "./seasons.ts";
 import { calculatePlayerProfile } from "./player-profile.ts";
 import {
   decodeGameCursor,
@@ -48,7 +57,10 @@ export type CreationTransaction = {
   after: D1PreparedStatement[];
 };
 
-export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
+export const createRepository = (
+  db: Pick<D1Database, "prepare" | "batch">,
+  clock: () => number = Date.now,
+) => {
   const callStatsStatement = (stats: GameCallStat[], gameId?: number) =>
     db
       .prepare(
@@ -62,6 +74,8 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
       .bind(JSON.stringify(stats), ...(gameId === undefined ? [] : [gameId]));
 
   const getAppData = async (): Promise<AppData> => {
+    const now = clock();
+    const season = getCurrentSeason(now);
     const playerResult = await db
       .prepare(
         "SELECT id, code, name, gender, archived_at AS archivedAt FROM players ORDER BY name",
@@ -87,10 +101,14 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
       statsByGame.set(gameId, stats);
     }
     for (const game of games) game.callStats = statsByGame.get(game.id) ?? [];
-    const leaderboard = calculateRatings(players, games).sort(
-      (a, b) => b.rating - a.rating || a.name.localeCompare(b.name),
+    const leaderboard = sortRatings(
+      calculateRatings(
+        players,
+        games.filter((game) => isInSeason(game.playedAt, season)),
+      ),
     );
     return {
+      season,
       players,
       games,
       leaderboard,
@@ -100,15 +118,39 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
 
   const getGamePage = async (
     cursorValue: string | null = null,
+    playerId: number | null = null,
+    seasonId: number | null = null,
+    now = clock(),
   ): Promise<GamePage> => {
+    const season = seasonId === null ? null : getSeason(seasonId, now);
     const cursor = decodeGameCursor(cursorValue);
+    if (playerId !== null && (!Number.isSafeInteger(playerId) || playerId <= 0))
+      throw new InputError("Invalid game history player ID.");
+    const conditions = [
+      ...(season
+        ? ["g.played_at < ?", ...(season.startsAt ? ["g.played_at >= ?"] : [])]
+        : []),
+      ...(cursor ? ["(g.played_at, g.id) < (?, ?)"] : []),
+      ...(playerId !== null
+        ? [
+            "? IN (g.team_a_player_1_id, g.team_a_player_2_id, g.team_b_player_1_id, g.team_b_player_2_id)",
+          ]
+        : []),
+    ];
     const result = await db
       .prepare(
         `${gameProjection}
-      ${cursor ? "WHERE (g.played_at, g.id) < (?, ?)" : ""}
+      ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
       ORDER BY g.played_at DESC, g.id DESC LIMIT ?`,
       )
-      .bind(...(cursor ? [cursor.playedAt, cursor.id] : []), GAME_PAGE_SIZE + 1)
+      .bind(
+        ...(season
+          ? [season.endsAt, ...(season.startsAt ? [season.startsAt] : [])]
+          : []),
+        ...(cursor ? [cursor.playedAt, cursor.id] : []),
+        ...(playerId !== null ? [playerId] : []),
+        GAME_PAGE_SIZE + 1,
+      )
       .all<Game>();
     const games = result.results.slice(0, GAME_PAGE_SIZE);
     if (games.length) {
@@ -135,10 +177,15 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
     };
   };
 
-  // Elo must replay every result, but only the compact inputs stay on the server.
-  // Joined history and per-game call details are fetched only for the requested page.
-  const getReplayData = async () => {
-    const [players, games] = await Promise.all([
+  // Bound every replay and its call stats to the same season. All players remain
+  // available so archived opponents still contribute to the Elo calculation.
+  const getReplayData = async (season: Season) => {
+    const where = `g.played_at < ?${season.startsAt ? " AND g.played_at >= ?" : ""}`;
+    const bounds = [
+      season.endsAt,
+      ...(season.startsAt ? [season.startsAt] : []),
+    ];
+    const [players, games, stats] = await Promise.all([
       db
         .prepare(
           "SELECT id, code, name, gender, archived_at AS archivedAt FROM players ORDER BY name",
@@ -146,57 +193,77 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
         .all<Player>(),
       db
         .prepare(
-          `SELECT id, team_a_player_1_id AS teamAPlayer1Id, team_a_player_2_id AS teamAPlayer2Id,
+          `SELECT g.id, team_a_player_1_id AS teamAPlayer1Id, team_a_player_2_id AS teamAPlayer2Id,
         score_a AS scoreA, team_b_player_1_id AS teamBPlayer1Id, team_b_player_2_id AS teamBPlayer2Id,
-        score_b AS scoreB, played_at AS playedAt FROM games ORDER BY played_at, id`,
+        score_b AS scoreB, played_at AS playedAt FROM games g WHERE ${where} ORDER BY played_at, g.id`,
         )
+        .bind(...bounds)
         .all<EloGame>(),
-    ]);
-    return { players: players.results, games: games.results };
-  };
-
-  const getDashboardData = async (): Promise<DashboardData> => {
-    const [replay, history, stats] = await Promise.all([
-      getReplayData(),
-      getGamePage(),
       db
         .prepare(
-          `SELECT player_id AS playerId, SUM(tichus) AS tichus,
-        SUM(successful_tichus) AS successfulTichus, SUM(grand_tichus) AS grandTichus,
-        SUM(successful_grand_tichus) AS successfulGrandTichus FROM game_player_stats GROUP BY player_id`,
+          `SELECT s.game_id AS gameId, s.player_id AS playerId,
+        s.grand_tichus AS grandTichus, s.successful_grand_tichus AS successfulGrandTichus,
+        s.tichus, s.successful_tichus AS successfulTichus
+        FROM game_player_stats s JOIN games g ON g.id = s.game_id WHERE ${where}`,
         )
-        .all<GameCallStat>(),
+        .bind(...bounds)
+        .all<GameCallStat & { gameId: number }>(),
     ]);
-    const totals = new Map(
-      stats.results.map(({ playerId, ...stat }) => [playerId, stat]),
-    );
-    const leaderboard = calculateRatings(replay.players, replay.games)
-      .map((player) => ({ ...player, ...totals.get(player.id) }))
-      .sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
-    return { leaderboard, history };
-  };
-
-  const getPlayerProfile = async (playerId: number) => {
-    const { players, games } = await getReplayData();
-    if (!players.some(({ id }) => id === playerId)) return null;
-    const stats = await db
-      .prepare(
-        `SELECT s.game_id AS gameId, s.player_id AS playerId,
-      s.grand_tichus AS grandTichus, s.successful_grand_tichus AS successfulGrandTichus,
-      s.tichus, s.successful_tichus AS successfulTichus
-      FROM game_player_stats s JOIN games g ON g.id = s.game_id
-      WHERE ? IN (g.team_a_player_1_id, g.team_a_player_2_id, g.team_b_player_1_id, g.team_b_player_2_id)`,
-      )
-      .bind(playerId)
-      .all<GameCallStat & { gameId: number }>();
     const byGame = new Map<number, GameCallStat[]>();
     for (const { gameId, ...stat } of stats.results) {
       const calls = byGame.get(gameId) ?? [];
       calls.push(stat);
       byGame.set(gameId, calls);
     }
-    for (const game of games) game.callStats = byGame.get(game.id) ?? [];
-    return calculatePlayerProfile(players, games, playerId);
+    for (const game of games.results)
+      game.callStats = byGame.get(game.id) ?? [];
+    return { players: players.results, games: games.results };
+  };
+
+  const getPlayerRatings = async (season = getCurrentSeason(clock())) => {
+    const { players, games } = await getReplayData(season);
+    return sortRatings(calculateRatings(players, games));
+  };
+
+  const getSeasonStandings = async (seasonId: number | null = null) => {
+    const now = clock();
+    const season =
+      seasonId === null ? getCurrentSeason(now) : getSeason(seasonId, now);
+    return {
+      season,
+      seasons: getSeasons(now),
+      leaderboard: rankedPlayers(await getPlayerRatings(season), season),
+    };
+  };
+
+  const getDashboardData = async (): Promise<DashboardData> => {
+    const now = clock();
+    const season = getCurrentSeason(now);
+    const [leaderboard, history] = await Promise.all([
+      getPlayerRatings(season),
+      getGamePage(null, null, season.id, now),
+    ]);
+    return { season, seasons: getSeasons(now), leaderboard, history };
+  };
+
+  const getPlayerProfile = async (
+    playerId: number,
+    seasonId: number | null = null,
+  ) => {
+    const now = clock();
+    const season =
+      seasonId === null ? getCurrentSeason(now) : getSeason(seasonId, now);
+    const { players, games } = await getReplayData(season);
+    const profile = calculatePlayerProfile(players, games, playerId);
+    if (!profile) return null;
+    const rankings = rankedPlayers(calculateRatings(players, games), season);
+    const index = rankings.findIndex(({ id }) => id === playerId);
+    return {
+      ...profile,
+      season,
+      seasons: getSeasons(now),
+      rank: index === -1 ? null : index + 1,
+    };
   };
 
   const createPlayer = async (
@@ -347,6 +414,8 @@ export const createRepository = (db: Pick<D1Database, "prepare" | "batch">) => {
   return {
     getAppData,
     getDashboardData,
+    getPlayerRatings,
+    getSeasonStandings,
     getGamePage,
     getPlayerProfile,
     createPlayer,

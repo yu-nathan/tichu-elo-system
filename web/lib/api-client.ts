@@ -1,6 +1,13 @@
-import type { PlayerProfile } from "./player-profile.ts";
+import type { SeasonalPlayerProfile } from "./player-profile.ts";
 import type { AdminEntry } from "./admin-access.ts";
-import type { AppData, GamePage, PlayerInput, PlayerUpdate } from "./models.ts";
+import type {
+  AppData,
+  DashboardData,
+  SeasonStandings,
+  GamePage,
+  PlayerInput,
+  PlayerUpdate,
+} from "./models.ts";
 import type { gameDraftToInput } from "./game-draft.ts";
 
 const request = async (
@@ -76,34 +83,87 @@ export const addAdmin = async (email: string): Promise<AdminEntry[]> => {
 };
 
 export const fetchGamePage = async (
-  cursor: string,
+  cursor: string | null,
   signal?: AbortSignal,
+  playerId: number | null = null,
+  seasonId: number | null = null,
 ): Promise<GamePage> => {
-  const response = await fetch(
-    `/api/games?cursor=${encodeURIComponent(cursor)}`,
-    { cache: "no-store", signal },
-  );
-  if (!response.ok) throw new Error("Could not load older games. Try again.");
+  const params = new URLSearchParams();
+  if (cursor !== null) params.set("cursor", cursor);
+  if (playerId !== null) params.set("playerId", String(playerId));
+  if (seasonId !== null) params.set("seasonId", String(seasonId));
+  const response = await fetch(`/api/games${params.size ? `?${params}` : ""}`, {
+    cache: "no-store",
+    signal,
+  });
+  const message = cursor
+    ? "Could not load older games. Try again."
+    : "Could not load games. Try again.";
+  if (!response.ok) throw new Error(message);
   const page = (await response.json()) as GamePage;
   if (
     !Array.isArray(page?.games) ||
     !(page.nextCursor === null || typeof page.nextCursor === "string")
   )
-    throw new Error("Could not load older games. Try again.");
+    throw new Error(message);
   return page;
 };
 
 export const fetchPlayerProfile = async (
   id: number,
   signal: AbortSignal,
-): Promise<PlayerProfile> => {
-  const response = await fetch(`/api/players/${id}/profile`, {
+  seasonId: number | null = null,
+): Promise<SeasonalPlayerProfile> => {
+  const response = await fetch(
+    `/api/players/${id}/profile${seasonId === null ? "" : `?seasonId=${seasonId}`}`,
+    {
+      cache: "no-store",
+      signal,
+    },
+  );
+  if (!response.ok) throw new Error("Could not load this profile. Try again.");
+  const profile = (await response.json()) as SeasonalPlayerProfile;
+  if (
+    profile?.player?.id !== id ||
+    !Array.isArray(profile.history) ||
+    !profile.season ||
+    !Array.isArray(profile.seasons) ||
+    !profile.seasons.length
+  )
+    throw new Error("Could not load this profile. Try again.");
+  return profile;
+};
+
+export const fetchDashboard = async (
+  signal: AbortSignal,
+): Promise<DashboardData> => {
+  const response = await fetch("/api/dashboard", { cache: "no-store", signal });
+  if (!response.ok) throw new Error("Could not refresh standings. Try again.");
+  const data = (await response.json()) as DashboardData;
+  if (
+    !data.season ||
+    !Array.isArray(data.seasons) ||
+    !Array.isArray(data.leaderboard) ||
+    !Array.isArray(data.history?.games)
+  )
+    throw new Error("Could not refresh standings. Try again.");
+  return data;
+};
+export const fetchSeasonStandings = async (
+  id: number,
+  signal: AbortSignal,
+): Promise<SeasonStandings> => {
+  const response = await fetch(`/api/seasons/${id}`, {
     cache: "no-store",
     signal,
   });
-  if (!response.ok) throw new Error("Could not load this profile. Try again.");
-  const profile = (await response.json()) as PlayerProfile;
-  if (profile?.player?.id !== id || !Array.isArray(profile.history))
-    throw new Error("Could not load this profile. Try again.");
-  return profile;
+  if (!response.ok) throw new Error("Could not load this season. Try again.");
+  const data = (await response.json()) as SeasonStandings;
+  if (
+    data.season?.id !== id ||
+    !Array.isArray(data.seasons) ||
+    !Array.isArray(data.leaderboard)
+  )
+    throw new Error("Could not load this season. Try again.");
+  return data;
 };

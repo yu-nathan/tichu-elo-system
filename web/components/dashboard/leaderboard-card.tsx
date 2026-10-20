@@ -1,8 +1,10 @@
 "use client";
 
+import { seasonDateLabel, type Season } from "@/lib/seasons";
 import { THEME_LABELS, type SeasonalTheme } from "@/lib/seasonal-theme";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { SeasonSelect } from "@/components/season-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,11 +16,23 @@ import { SeasonalArt } from "@/components/dashboard/seasonal-decorations";
 
 export const LeaderboardCard = ({
   active,
+  season,
+  seasons,
+  onSeasonChange,
+  loading,
+  error,
+  onRetry,
   theme = "default",
   copied,
   onCopy,
 }: {
   active: RatingEntry[];
+  season: Season;
+  seasons: Season[];
+  onSeasonChange: (id: number) => void;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
   theme?: SeasonalTheme;
   copied: boolean;
   onCopy: () => void;
@@ -28,7 +42,7 @@ export const LeaderboardCard = ({
     <Dialog>
       <Card className="h-full min-h-0 border-white/8 bg-card/80 shadow-2xl shadow-black/20">
         <CardHeader className="shrink-0 border-b border-white/8">
-          <div className="flex items-start gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div
               className="seasonal-heading-art pointer-events-none aspect-square w-32 shrink-0 sm:w-48"
               aria-hidden="true"
@@ -53,8 +67,31 @@ export const LeaderboardCard = ({
                   ))}
                 </Badge>
                 <CardTitle className="mt-3 text-xl">Leaderboard</CardTitle>
+                <div className="mt-2">
+                  <SeasonSelect
+                    seasons={seasons}
+                    value={season.id}
+                    label="Leaderboard season"
+                    onChange={(id) => {
+                      if (id !== null) onSeasonChange(id);
+                    }}
+                  />
+                </div>
+                {season.status === "completed" && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Final standings · All participants
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {seasonDateLabel(season)}
+                </p>
               </div>
-              <Button variant="secondary" size="sm" onClick={onCopy}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onCopy}
+                disabled={loading || Boolean(error)}
+              >
                 {copied ? <Check /> : <Copy />}{" "}
                 {copied ? "Copied" : "Copy for Discord"}
               </Button>
@@ -75,60 +112,86 @@ export const LeaderboardCard = ({
             <span className="text-right">Grand Tichu</span>
             <span className="text-right">Tichu</span>
           </div>
-          {active.map((player, index) => (
-            <div key={player.id} className="border-t border-white/6">
-              <div className="hidden grid-cols-[2.5rem_minmax(0,1fr)_5rem_6rem_6rem_4rem] gap-3 items-center px-5 py-3.5 sm:grid">
-                <Rank index={index} />
-                <PlayerTrigger player={player} onSelect={setSelectedPlayerId} />
-                <span className="text-right font-mono text-seasonal-rating">
-                  {player.rating.toFixed(1)}
-                </span>
-                <span className="text-right font-mono text-muted-foreground">
-                  {player.gamesPlayed}
-                </span>
-                <SuccessRatio
-                  successes={player.successfulGrandTichus}
-                  attempts={player.grandTichus}
-                />
-                <SuccessRatio
-                  successes={player.successfulTichus}
-                  attempts={player.tichus}
-                />
-              </div>
-              <div className="px-4 py-3.5 sm:hidden">
-                <div className="flex items-center gap-3">
+          {error ? (
+            <div role="alert" className="p-5 text-sm">
+              {error}{" "}
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                Retry season
+              </Button>
+            </div>
+          ) : loading ? (
+            <p role="status" className="p-5 text-sm text-muted-foreground">
+              Loading season…
+            </p>
+          ) : (
+            !active.length && (
+              <p className="p-5 text-sm text-muted-foreground">
+                No participants in this season.
+              </p>
+            )
+          )}
+          {!error &&
+            !loading &&
+            active.map((player, index) => (
+              <div key={player.id} className="border-t border-white/6">
+                <div className="hidden grid-cols-[2.5rem_minmax(0,1fr)_5rem_6rem_6rem_4rem] gap-3 items-center px-5 py-3.5 sm:grid">
                   <Rank index={index} />
-                  <div className="min-w-0 flex-1">
-                    <PlayerTrigger
-                      player={player}
-                      onSelect={setSelectedPlayerId}
-                    />
-                  </div>
-                  <span className="font-mono text-seasonal-rating">
+                  <PlayerTrigger
+                    player={player}
+                    onSelect={setSelectedPlayerId}
+                  />
+                  <span className="text-right font-mono text-seasonal-rating">
                     {player.rating.toFixed(1)}
                   </span>
+                  <span className="text-right font-mono text-muted-foreground">
+                    {player.gamesPlayed}
+                  </span>
+                  <SuccessRatio
+                    successes={player.successfulGrandTichus}
+                    attempts={player.grandTichus}
+                  />
+                  <SuccessRatio
+                    successes={player.successfulTichus}
+                    attempts={player.tichus}
+                  />
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 pl-8 text-[11px] text-muted-foreground">
-                  <span>Games played {player.gamesPlayed}</span>
-                  <span>
-                    Grand Tichu{" "}
-                    {formatRatio(
-                      player.successfulGrandTichus,
-                      player.grandTichus,
-                    )}
-                  </span>
-                  <span>
-                    Tichu {formatRatio(player.successfulTichus, player.tichus)}
-                  </span>
+                <div className="px-4 py-3.5 sm:hidden">
+                  <div className="flex items-center gap-3">
+                    <Rank index={index} />
+                    <div className="min-w-0 flex-1">
+                      <PlayerTrigger
+                        player={player}
+                        onSelect={setSelectedPlayerId}
+                      />
+                    </div>
+                    <span className="font-mono text-seasonal-rating">
+                      {player.rating.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 pl-8 text-[11px] text-muted-foreground">
+                    <span>Games played {player.gamesPlayed}</span>
+                    <span>
+                      Grand Tichu{" "}
+                      {formatRatio(
+                        player.successfulGrandTichus,
+                        player.grandTichus,
+                      )}
+                    </span>
+                    <span>
+                      Tichu{" "}
+                      {formatRatio(player.successfulTichus, player.tichus)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
         </CardContent>
       </Card>
       {selectedPlayerId !== null ? (
         <PlayerProfileLoader
-          key={selectedPlayerId}
+          key={`${selectedPlayerId}:${season.id}`}
+          initialSeason={season}
+          seasons={seasons}
           playerId={selectedPlayerId}
           name={
             active.find(({ id }) => id === selectedPlayerId)?.name ?? "Player"
