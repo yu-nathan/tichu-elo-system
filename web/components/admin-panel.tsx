@@ -60,8 +60,8 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
   };
 
   return (
-    <main className="seasonal-admin h-dvh overflow-hidden px-4 py-6 text-foreground sm:px-6">
-      <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col">
+    <main className="seasonal-admin min-h-dvh px-4 py-6 text-foreground sm:px-6">
+      <div className="mx-auto flex max-w-6xl flex-col">
         <header className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-seasonal-brand">
@@ -113,7 +113,7 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
         ) : null}
         <section
           aria-label="Admin content"
-          className="grid min-h-0 flex-1 gap-6 overflow-y-auto overscroll-contain p-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:grid-cols-[1.1fr_.9fr]"
+          className="grid gap-6 p-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:grid-cols-[1.1fr_.9fr]"
         >
           <section className="space-y-6">
             <GameForm

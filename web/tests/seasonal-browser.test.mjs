@@ -816,9 +816,7 @@ test("site-wide themes share controls, previews, and preferences with the admin 
       ).toBeVisible();
       assert.equal(
         await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth <= innerWidth &&
-            document.documentElement.scrollHeight <= innerHeight,
+          () => document.documentElement.scrollWidth <= innerWidth,
         ),
         true,
       );

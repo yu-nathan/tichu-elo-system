@@ -204,11 +204,27 @@ test("dashboard and admin render at mobile and desktop widths without hydration 
       }
       assert.ok(
         await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth <= window.innerWidth &&
-            document.documentElement.scrollHeight <= window.innerHeight,
+          () => document.documentElement.scrollWidth <= innerWidth,
         ),
       );
+      if (path === "/admin") {
+        const content = page.getByRole("region", { name: "Admin content" });
+        assert.equal(
+          await content.evaluate((el) => getComputedStyle(el).overflowY),
+          "visible",
+        );
+        await page.mouse.wheel(0, 600);
+        await expect
+          .poll(() => page.evaluate(() => scrollY))
+          .toBeGreaterThan(0);
+        assert.equal(await content.evaluate((el) => el.scrollTop), 0);
+      } else {
+        assert.ok(
+          await page.evaluate(
+            () => document.documentElement.scrollHeight <= innerHeight,
+          ),
+        );
+      }
       assert.deepEqual(errors, []);
     }
   }
