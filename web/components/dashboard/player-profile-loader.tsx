@@ -82,7 +82,7 @@ export const PlayerProfileLoader = ({
     </div>
   );
   return (
-    <DialogContent className="max-w-5xl">
+    <DialogContent className="h-[90dvh] max-w-5xl">
       <DialogTitle className="break-words pr-8 text-2xl font-semibold">
         {name}
       </DialogTitle>
