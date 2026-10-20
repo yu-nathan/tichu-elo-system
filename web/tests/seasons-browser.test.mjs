@@ -35,6 +35,11 @@ const select = async (page, label, name) => {
 test("profiles expose Current season and Historic, with accessible empty states at both sizes", async (context) => {
   for (const width of [390, 1280]) {
     const { page, errors } = await open(context, width);
+    const profileRequests = [];
+    page.on("request", (request) => {
+      if (/\/api\/players\/\d+\/profile/.test(request.url()))
+        profileRequests.push(request.url());
+    });
     await page.goto("/");
     await expect(page.locator("time").first()).not.toBeEmpty();
     const trigger = page
@@ -58,6 +63,25 @@ test("profiles expose Current season and Historic, with accessible empty states 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();
+    // Switching players remounts the loader; returning must still use the cache.
+    await page
+      .getByRole("button", { name: /View .+ profile/ })
+      .filter({ visible: true })
+      .nth(1)
+      .click();
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("heading", { name: "Win rate", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await trigger.click();
+    await expect(dialog.getByText("Loading profile…")).toHaveCount(0);
+    await expect(
+      dialog.getByRole("heading", { name: "Win rate", exact: true }),
+    ).toBeVisible();
+    assert.equal(profileRequests.length, 2);
+    await page.keyboard.press("Escape");
     const selector = page.getByRole("button", {
       name: "Leaderboard season",
       exact: true,
@@ -105,6 +129,7 @@ test("an open dashboard resets at midnight and historic profiles retain their ow
     status: "current",
   };
   const seasons = [current, past];
+  const profileRequests = [];
   const resetPlayers = existing.leaderboard.map((p) => ({
     ...p,
     rating: 1000,
@@ -126,6 +151,7 @@ test("an open dashboard resets at midnight and historic profiles retain their ow
     route.fulfill({ json: reset }),
   );
   await page.route("**/api/players/*/profile*", (route) => {
+    profileRequests.push(route.request().url());
     const historical =
       new URL(route.request().url()).searchParams.get("seasonId") === "1";
     return route.fulfill({
@@ -179,6 +205,10 @@ test("an open dashboard resets at midnight and historic profiles retain their ow
     .getByRole("tab", { name: "Current season", exact: true })
     .click();
   await expect(dialog.getByText("1000.0 Elo", { exact: true })).toBeVisible();
+  await dialog.getByRole("tab", { name: "Historic", exact: true }).click();
+  await expect(dialog.getByText("Loading profile…")).toHaveCount(0);
+  await expect(dialog.getByText(/Season 1 · Final/)).toBeVisible();
+  assert.equal(profileRequests.length, 2);
   assert.deepEqual(errors, []);
 });
 

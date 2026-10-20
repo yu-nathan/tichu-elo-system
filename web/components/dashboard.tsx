@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, Settings, Sparkles } from "lucide-react";
 import { useSeasonRefresh } from "@/hooks/use-season-refresh";
 import { fetchDashboard, fetchSeasonStandings } from "@/lib/api-client";
+import { createPlayerProfileCache } from "@/lib/player-profile-cache";
 import { cn } from "@/lib/utils";
 import { Tabs } from "@base-ui/react/tabs";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export const Dashboard = ({
   signOutHref,
 }: Props) => {
   const [data, setData] = useState(initialData);
+  const [profileCache] = useState(createPlayerProfileCache);
   // Null follows the current season across rollover; historical selections stay fixed.
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(
     initialSeasonId === initialData.season.id ? null : initialSeasonId,
@@ -76,6 +78,7 @@ export const Dashboard = ({
     void fetchDashboard(controller.signal)
       .then((next) => {
         if (!controller.signal.aborted) {
+          profileCache.invalidate();
           setData(next);
           setRefreshError(null);
         }
@@ -209,6 +212,7 @@ export const Dashboard = ({
               )}
             >
               <LeaderboardCard
+                profileCache={profileCache}
                 active={selectedStandings?.leaderboard ?? []}
                 season={selectedSeason}
                 onSeasonChange={selectSeason}

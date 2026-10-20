@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRatio } from "@/lib/format";
 import type { RatingEntry } from "@/lib/elo";
+import type { PlayerProfileCache } from "@/lib/player-profile-cache";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { PlayerProfileLoader } from "@/components/dashboard/player-profile-loader";
 import { SeasonalArt } from "@/components/dashboard/seasonal-decorations";
 
 export const LeaderboardCard = ({
+  profileCache,
   active,
   season,
   seasons,
@@ -26,6 +28,7 @@ export const LeaderboardCard = ({
   copied,
   onCopy,
 }: {
+  profileCache: PlayerProfileCache;
   active: RatingEntry[];
   season: Season;
   seasons: Season[];
@@ -189,6 +192,7 @@ export const LeaderboardCard = ({
       </Card>
       {selectedPlayerId !== null ? (
         <PlayerProfileLoader
+          cache={profileCache}
           key={`${selectedPlayerId}:${season.id}`}
           initialSeason={season}
           seasons={seasons}
