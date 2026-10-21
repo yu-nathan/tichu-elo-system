@@ -5,6 +5,7 @@ import { useSiteTheme } from "@/components/seasonal-theme-provider";
 import { ThemeControls } from "@/components/dashboard/theme-controls";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SeasonSettingsCard } from "@/components/admin/season-settings-card";
 import { ApiAccessCard } from "@/components/admin/api-access-card";
 import { useApiAccess } from "@/hooks/use-api-access";
 import { AdminsCard } from "@/components/admins-card";
@@ -141,6 +142,15 @@ export const AdminPanel = ({ initialData, initialAdmins }: Props) => {
             />
             {initialAdmins ? (
               <>
+                <SeasonSettingsCard
+                  settings={data.seasonSettings}
+                  season={data.season}
+                  busy={disabled}
+                  onSave={(settings) =>
+                    mutate(() => api.saveSeasonSettings(settings))
+                  }
+                  onRefresh={refresh}
+                />
                 <ApiAccessCard access={apiAccess} />
                 <AdminsCard initialAdmins={initialAdmins} />
               </>

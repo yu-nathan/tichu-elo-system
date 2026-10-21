@@ -1,8 +1,11 @@
-import { getCurrentSeason, getSeasons } from "@/lib/seasons";
+import { getSeasonData } from "@/lib/store";
+import { apiErrorResponse } from "@/lib/api-errors";
 export const GET = async () => {
-  const now = Date.now();
-  return Response.json(
-    { season: getCurrentSeason(now), seasons: getSeasons(now) },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  try {
+    return Response.json(await getSeasonData(), {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 };

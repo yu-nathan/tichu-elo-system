@@ -1,5 +1,8 @@
 import {
   getCurrentSeason,
+  parseSeasonCadence,
+  SeasonSettingsConflict,
+  type SeasonSettings,
   getSeason,
   getSeasons,
   isInSeason,
@@ -32,6 +35,7 @@ import {
   InputError,
   requireRecord,
 } from "./input.ts";
+import { readDashboard, type DashboardTimings } from "./dashboard-cache.ts";
 
 const gameProjection = `SELECT
       g.id, g.team_a_player_1_id AS teamAPlayer1Id, g.team_a_player_2_id AS teamAPlayer2Id,
@@ -61,6 +65,51 @@ export const createRepository = (
   db: Pick<D1Database, "prepare" | "batch">,
   clock: () => number = Date.now,
 ) => {
+  const getSeasonSettings = async (): Promise<SeasonSettings> => {
+    const settings = await db
+      .prepare(
+        "SELECT cadence_months AS cadenceMonths, revision FROM season_settings WHERE id = 1",
+      )
+      .first<SeasonSettings>();
+    if (!settings)
+      throw new Error("Season settings are missing. Apply migrations.");
+    return { ...settings };
+  };
+
+  const updateSeasonSettings = async (input: unknown) => {
+    const data = requireRecord(input);
+    const cadence = parseSeasonCadence(data.cadenceMonths);
+    if (
+      !Number.isSafeInteger(data.revision) ||
+      (data.revision as number) < 0 ||
+      Object.keys(data).some(
+        (key) => !["cadenceMonths", "revision"].includes(key),
+      )
+    )
+      throw new InputError("Invalid season settings. Refresh and try again.");
+    // One atomic switch: all statistics are derived from raw games on read.
+    // A stale owner console cannot silently overwrite another saved cadence.
+    const result = await db
+      .prepare(
+        "UPDATE season_settings SET cadence_months = ?, revision = revision + 1 WHERE id = 1 AND revision = ?",
+      )
+      .bind(cadence, data.revision)
+      .run();
+    if (!result.meta.changes)
+      throw new SeasonSettingsConflict(
+        "Season settings changed. Refresh settings before saving again.",
+      );
+  };
+
+  const getSeasonData = async (now = clock()) => {
+    const seasonSettings = await getSeasonSettings();
+    return {
+      seasonSettings,
+      season: getCurrentSeason(now, seasonSettings.cadenceMonths),
+      seasons: getSeasons(now, seasonSettings.cadenceMonths),
+    };
+  };
+
   const callStatsStatement = (stats: GameCallStat[], gameId?: number) =>
     db
       .prepare(
@@ -75,7 +124,7 @@ export const createRepository = (
 
   const getAppData = async (): Promise<AppData> => {
     const now = clock();
-    const season = getCurrentSeason(now);
+    const { season, seasonSettings } = await getSeasonData(now);
     const playerResult = await db
       .prepare(
         "SELECT id, code, name, gender, archived_at AS archivedAt FROM players ORDER BY name",
@@ -109,6 +158,7 @@ export const createRepository = (
     );
     return {
       season,
+      seasonSettings,
       players,
       games,
       leaderboard,
@@ -121,8 +171,16 @@ export const createRepository = (
     playerId: number | null = null,
     seasonId: number | null = null,
     now = clock(),
+    settings?: SeasonSettings,
   ): Promise<GamePage> => {
-    const season = seasonId === null ? null : getSeason(seasonId, now);
+    const season =
+      seasonId === null
+        ? null
+        : getSeason(
+            seasonId,
+            now,
+            (settings ?? (await getSeasonSettings())).cadenceMonths,
+          );
     const cursor = decodeGameCursor(cursorValue);
     if (playerId !== null && (!Number.isSafeInteger(playerId) || playerId <= 0))
       throw new InputError("Invalid game history player ID.");
@@ -220,39 +278,79 @@ export const createRepository = (
     return { players: players.results, games: games.results };
   };
 
-  const getPlayerRatings = async (season = getCurrentSeason(clock())) => {
-    const { players, games } = await getReplayData(season);
-    return sortRatings(calculateRatings(players, games));
+  const getPlayerRatings = async (
+    season?: Season,
+    timings?: DashboardTimings,
+  ) => {
+    const readStart = performance.now();
+    const { players, games } = await getReplayData(
+      season ?? (await getSeasonData()).season,
+    );
+    if (timings)
+      timings.replay_read =
+        (timings.replay_read ?? 0) + performance.now() - readStart;
+    const eloStart = performance.now();
+    const ratings = sortRatings(calculateRatings(players, games));
+    if (timings)
+      timings.elo = (timings.elo ?? 0) + performance.now() - eloStart;
+    return ratings;
   };
 
   const getSeasonStandings = async (seasonId: number | null = null) => {
     const now = clock();
+    const {
+      seasonSettings,
+      season: current,
+      seasons,
+    } = await getSeasonData(now);
     const season =
-      seasonId === null ? getCurrentSeason(now) : getSeason(seasonId, now);
+      seasonId === null
+        ? current
+        : getSeason(seasonId, now, seasonSettings.cadenceMonths);
     return {
       season,
-      seasons: getSeasons(now),
+      seasons,
       leaderboard: rankedPlayers(await getPlayerRatings(season), season),
     };
   };
 
-  const getDashboardData = async (): Promise<DashboardData> => {
-    const now = clock();
-    const season = getCurrentSeason(now);
-    const [leaderboard, history] = await Promise.all([
-      getPlayerRatings(season),
-      getGamePage(null, null, season.id, now),
-    ]);
-    return { season, seasons: getSeasons(now), leaderboard, history };
-  };
+  const getDashboardData = (
+    report?: (timings: DashboardTimings) => void,
+  ): Promise<DashboardData> =>
+    readDashboard(
+      db,
+      clock,
+      async ({ now, season, seasons, seasonSettings }, timings) => {
+        const historyStart = performance.now();
+        const [leaderboard, history] = await Promise.all([
+          getPlayerRatings(season, timings),
+          getGamePage(null, null, season.id, now, seasonSettings).then(
+            (page) => {
+              timings.history_read =
+                (timings.history_read ?? 0) + performance.now() - historyStart;
+              return page;
+            },
+          ),
+        ]);
+        return { season, seasons, leaderboard, history };
+      },
+      report,
+    );
 
   const getPlayerProfile = async (
     playerId: number,
     seasonId: number | null = null,
   ) => {
     const now = clock();
+    const {
+      seasonSettings,
+      season: current,
+      seasons,
+    } = await getSeasonData(now);
     const season =
-      seasonId === null ? getCurrentSeason(now) : getSeason(seasonId, now);
+      seasonId === null
+        ? current
+        : getSeason(seasonId, now, seasonSettings.cadenceMonths);
     const { players, games } = await getReplayData(season);
     const profile = calculatePlayerProfile(players, games, playerId);
     if (!profile) return null;
@@ -261,7 +359,7 @@ export const createRepository = (
     return {
       ...profile,
       season,
-      seasons: getSeasons(now),
+      seasons,
       rank: index === -1 ? null : index + 1,
     };
   };
@@ -412,6 +510,9 @@ export const createRepository = (
   };
 
   return {
+    getSeasonSettings,
+    updateSeasonSettings,
+    getSeasonData,
     getAppData,
     getDashboardData,
     getPlayerRatings,

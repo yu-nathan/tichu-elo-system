@@ -2,19 +2,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, Settings, Sparkles } from "lucide-react";
 import { useSeasonRefresh } from "@/hooks/use-season-refresh";
+import { useProfilePreload } from "@/hooks/use-profile-preload";
 import { fetchDashboard, fetchSeasonStandings } from "@/lib/api-client";
 import { createPlayerProfileCache } from "@/lib/player-profile-cache";
 import { cn } from "@/lib/utils";
 import { Tabs } from "@base-ui/react/tabs";
 import { Button } from "@/components/ui/button";
 import { LeaderboardCard } from "@/components/dashboard/leaderboard-card";
-import { MatchmakerCard } from "@/components/dashboard/matchmaker-card";
-import { HistoryCard } from "@/components/dashboard/history-card";
+import { DeferredPanel } from "@/components/dashboard/deferred-panel";
 import { ThemeControls } from "@/components/dashboard/theme-controls";
 import { useSiteTheme } from "@/components/seasonal-theme-provider";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { discordHistory, discordLeaderboard } from "@/lib/discord";
-import type { DashboardData, SeasonStandings } from "@/lib/models";
+import type { DashboardData, Game, SeasonStandings } from "@/lib/models";
+import type { Season } from "@/lib/seasons";
+
+const loadMatchmaker = () =>
+  import("@/components/dashboard/matchmaker-card").then(
+    ({ MatchmakerCard }) => MatchmakerCard,
+  );
+const loadHistory = () =>
+  import("@/components/dashboard/history-card").then(
+    ({ HistoryCard }) => HistoryCard,
+  );
 
 type Props = {
   data: DashboardData;
@@ -37,6 +47,7 @@ export const Dashboard = ({
 }: Props) => {
   const [data, setData] = useState(initialData);
   const [profileCache] = useState(createPlayerProfileCache);
+  useProfilePreload();
   // Null follows the current season across rollover; historical selections stay fixed.
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(
     initialSeasonId === initialData.season.id ? null : initialSeasonId,
@@ -90,6 +101,14 @@ export const Dashboard = ({
   useSeasonRefresh(data.season, refresh);
   const season = useSiteTheme();
   const [view, setView] = useState("leaderboard");
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 64rem)");
+    const update = () => setDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const active = useMemo(
     () => data.leaderboard.filter((player) => !player.archivedAt),
     [data.leaderboard],
@@ -241,7 +260,12 @@ export const Dashboard = ({
                 view !== "matchmaker" && "hidden",
               )}
             >
-              <MatchmakerCard active={active} />
+              <DeferredPanel
+                enabled={desktop || view === "matchmaker"}
+                load={loadMatchmaker}
+                title="Matchmaker"
+                componentProps={{ active }}
+              />
             </Tabs.Panel>
             <Tabs.Panel
               value="history"
@@ -253,19 +277,23 @@ export const Dashboard = ({
                 view !== "history" && "hidden",
               )}
             >
-              <HistoryCard
-                key={data.season.id}
-                season={data.season}
-                seasons={data.seasons}
-                initialPage={data.history}
-                players={data.leaderboard}
-                copied={copied === "history"}
-                onCopy={(games, selectedSeason) =>
-                  copy(
-                    "history",
-                    discordHistory({ games, season: selectedSeason }),
-                  )
-                }
+              <DeferredPanel
+                enabled={desktop || view === "history"}
+                load={loadHistory}
+                title="Recent games"
+                key={`${data.season.id}:${data.season.startsAt}:${data.season.endsAt}`}
+                componentProps={{
+                  season: data.season,
+                  seasons: data.seasons,
+                  initialPage: data.history,
+                  players: data.leaderboard,
+                  copied: copied === "history",
+                  onCopy: (games: Game[], selectedSeason: Season | null) =>
+                    copy(
+                      "history",
+                      discordHistory({ games, season: selectedSeason }),
+                    ),
+                }}
               />
             </Tabs.Panel>
           </section>

@@ -13,10 +13,56 @@ const empty: Entry = { profile: null, error: null, stale: true };
 export const createPlayerProfileCache = (fetchProfile = fetchPlayerProfile) => {
   const entries = new Map<string, Entry>();
   const requests = new Map<string, AbortController>();
+  const speculativeRequests = new Set<string>();
   const listeners = new Set<() => void>();
   const keyFor = (playerId: number, seasonId: number | null) =>
     `${playerId}:${seasonId ?? "current"}`;
   const notify = () => listeners.forEach((listener) => listener());
+
+  const load = async (
+    playerId: number,
+    seasonId: number | null,
+    retry = false,
+    speculative = false,
+  ) => {
+    const key = keyFor(playerId, seasonId);
+    const entry = entries.get(key) ?? empty;
+    if (requests.has(key)) {
+      // Once a dialog needs an in-flight prefetch, failures belong to its
+      // visible retry UI instead of silently starting another request.
+      if (!speculative) speculativeRequests.delete(key);
+      return;
+    }
+    if (!entry.stale && !retry) return;
+    const controller = new AbortController();
+    requests.set(key, controller);
+    if (speculative) speculativeRequests.add(key);
+    entries.set(key, { ...entry, error: null, stale: false });
+    notify();
+    try {
+      const profile = await fetchProfile(playerId, controller.signal, seasonId);
+      if (requests.get(key) !== controller) return;
+      entries.set(key, { profile, error: null, stale: false });
+    } catch (error) {
+      if (requests.get(key) !== controller) return;
+      const silent = speculativeRequests.has(key);
+      entries.set(key, {
+        ...entry,
+        stale: silent,
+        error: silent
+          ? null
+          : error instanceof Error
+            ? error.message
+            : "Could not load profile. Try again.",
+      });
+    } finally {
+      if (requests.get(key) === controller) {
+        requests.delete(key);
+        speculativeRequests.delete(key);
+        notify();
+      }
+    }
+  };
 
   return {
     subscribe: (listener: () => void) => {
@@ -27,42 +73,13 @@ export const createPlayerProfileCache = (fetchProfile = fetchPlayerProfile) => {
     },
     get: (playerId: number, seasonId: number | null) =>
       entries.get(keyFor(playerId, seasonId)) ?? empty,
-    load: async (playerId: number, seasonId: number | null, retry = false) => {
-      const key = keyFor(playerId, seasonId);
-      const entry = entries.get(key) ?? empty;
-      if (requests.has(key) || (!entry.stale && !retry)) return;
-      const controller = new AbortController();
-      requests.set(key, controller);
-      entries.set(key, { ...entry, error: null, stale: false });
-      notify();
-      try {
-        const profile = await fetchProfile(
-          playerId,
-          controller.signal,
-          seasonId,
-        );
-        if (requests.get(key) !== controller) return;
-        entries.set(key, { profile, error: null, stale: false });
-      } catch (error) {
-        if (requests.get(key) !== controller) return;
-        entries.set(key, {
-          ...entry,
-          stale: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Could not load profile. Try again.",
-        });
-      } finally {
-        if (requests.get(key) === controller) {
-          requests.delete(key);
-          notify();
-        }
-      }
-    },
+    load,
+    prefetch: (playerId: number, seasonId: number | null) =>
+      load(playerId, seasonId, false, true),
     invalidate: () => {
       requests.forEach((controller) => controller.abort());
       requests.clear();
+      speculativeRequests.clear();
       entries.forEach((entry, key) => {
         entries.set(key, { ...entry, error: null, stale: true });
       });

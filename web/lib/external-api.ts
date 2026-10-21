@@ -1,4 +1,3 @@
-import { getCurrentSeason } from "./seasons.ts";
 import { createRepository } from "./repository.ts";
 import { InputError, requireRecord } from "./input.ts";
 import {
@@ -99,7 +98,8 @@ export const createExternalApi =
               !Number.isSafeInteger(Number(cursor)))
           )
             throw new ApiFailure(400, "Invalid player cursor.");
-          const results = (await repository.getPlayerRatings())
+          const { season } = await repository.getSeasonData();
+          const results = (await repository.getPlayerRatings(season))
             .filter(({ id }) => id > (cursor === null ? 0 : Number(cursor)))
             .sort((a, b) => a.id - b.id)
             .slice(0, 51);
@@ -113,7 +113,7 @@ export const createExternalApi =
               rating,
             }));
           return apiJson({
-            season: getCurrentSeason(now),
+            season,
             players,
             nextCursor: results.length > 50 ? String(players.at(-1)!.id) : null,
           });

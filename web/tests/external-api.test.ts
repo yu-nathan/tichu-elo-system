@@ -962,3 +962,86 @@ test("external stats switch at Pacific midnight, agree across endpoints, and iso
     2,
   );
 });
+
+test("external players and leaderboard follow persisted cadence and match dashboard statistics", async (context) => {
+  const { db, request } = await fixture(context);
+  const repository = createRepository(db, () => start);
+  await repository.createGame(game, "test");
+  for (const cadenceMonths of [1, 3, 12, 6]) {
+    await repository.updateSeasonSettings({
+      ...(await repository.getSeasonSettings()),
+      cadenceMonths,
+    });
+    const data = await repository.getDashboardData();
+    const players = (await (await request("/api/v1/players")).json()) as {
+      season: Season;
+      players: { id: number; rating: number }[];
+    };
+    const standings = (await (await request("/api/v1/leaderboard")).json()) as {
+      season: Season;
+      leaderboard: RatingEntry[];
+    };
+    assert.deepEqual(players.season, data.season);
+    assert.deepEqual(standings.season, data.season);
+    for (const entry of data.leaderboard) {
+      assert.equal(
+        players.players.find(({ id }) => id === entry.id)?.rating,
+        entry.rating,
+      );
+      const actual = standings.leaderboard.find(({ id }) => id === entry.id)!;
+      for (const field of [
+        "rating",
+        "gamesPlayed",
+        "tichus",
+        "successfulTichus",
+        "grandTichus",
+        "successfulGrandTichus",
+      ] as const)
+        assert.equal(actual[field], entry[field]);
+    }
+  }
+});
+
+test("API-created games invalidate primed dashboard snapshots atomically; replays do not", async (context) => {
+  const f = await fixture(context);
+  const repository = createRepository(f.db, () => start);
+  const before = await repository.getDashboardData();
+  const revision = () =>
+    f.sqlite
+      .prepare("SELECT revision FROM dashboard_revision WHERE id = 1")
+      .get()?.revision;
+  const initialRevision = revision();
+  const created = await f.request("/api/v1/games", {
+    body: game,
+    token: "dashboard-cache-game",
+  });
+  assert.equal(created.status, 201);
+  const { id } = (await created.json()) as { id: number };
+  assert.notEqual(revision(), initialRevision);
+  const after = await repository.getDashboardData();
+  assert.ok(after.history.games.some((entry) => entry.id === id));
+  assert.equal(
+    after.leaderboard.find((player) => player.id === 1)!.gamesPlayed,
+    before.leaderboard.find((player) => player.id === 1)!.gamesPlayed + 1,
+  );
+  const api = (await (await f.request("/api/v1/leaderboard")).json()) as {
+    leaderboard: RatingEntry[];
+  };
+  assert.equal(
+    api.leaderboard.find((player) => player.id === 1)!.rating,
+    after.leaderboard.find((player) => player.id === 1)!.rating,
+  );
+  const committedRevision = revision();
+  const replay = await f.request("/api/v1/games", {
+    body: game,
+    token: "dashboard-cache-game",
+  });
+  assert.equal(replay.headers.get("Idempotency-Replayed"), "true");
+  assert.equal(revision(), committedRevision);
+  assert.deepEqual(await repository.getDashboardData(), after);
+  const invalid = await f.request("/api/v1/games", {
+    body: { ...game, teamAPlayer1Id: 999999 },
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(revision(), committedRevision);
+});

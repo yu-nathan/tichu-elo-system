@@ -1,5 +1,5 @@
 import { apiErrorResponse } from "@/lib/api-errors";
-import { parseSeasonId } from "@/lib/seasons";
+import { parseRequestedSeasonId } from "@/lib/seasons";
 import { getSeasonStandings } from "@/lib/store";
 export const GET = async (
   _request: Request,
@@ -7,7 +7,7 @@ export const GET = async (
 ) => {
   try {
     return Response.json(
-      await getSeasonStandings(parseSeasonId((await params).id)),
+      await getSeasonStandings(parseRequestedSeasonId((await params).id)),
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

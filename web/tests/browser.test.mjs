@@ -37,7 +37,10 @@ const openPage = async (context, path, options = {}) => {
   await page.goto(path);
   if (path === "/admin")
     await expect(page.getByLabel("Played at")).not.toHaveValue("");
-  else await expect(page.locator("time").first()).not.toBeEmpty();
+  else
+    await expect(
+      page.getByRole("button", { name: "Leaderboard season", exact: true }),
+    ).toBeVisible();
   return { page, errors };
 };
 

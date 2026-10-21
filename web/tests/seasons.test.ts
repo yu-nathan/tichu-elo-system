@@ -222,15 +222,17 @@ test("season and player filters apply before pagination with stable ties and no 
   await assert.rejects(repository.getPlayerProfile(1, 4), /season/);
 });
 
-test("each aggregate captures its season once even if the clock crosses midnight during reads", async (context) => {
+test("dashboard rebuilds revalidate their season when the clock crosses midnight", async (context) => {
   const { db } = createDatabase(context);
   let calls = 0;
   const repository = createRepository(db, () =>
     calls++ === 0 ? january - 1 : january,
   );
   const dashboard = await repository.getDashboardData();
-  assert.equal(calls, 1);
-  assert.equal(dashboard.season.id, 1);
-  assert.ok(dashboard.leaderboard.some(({ gamesPlayed }) => gamesPlayed > 0));
-  assert.ok(dashboard.history.games.length > 0);
+  assert.ok(calls > 1);
+  assert.equal(dashboard.season.id, 2);
+  assert.ok(
+    dashboard.leaderboard.every(({ gamesPlayed }) => gamesPlayed === 0),
+  );
+  assert.equal(dashboard.history.games.length, 0);
 });

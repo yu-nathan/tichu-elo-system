@@ -41,7 +41,9 @@ test("profiles expose Current season and Historic, with accessible empty states 
         profileRequests.push(request.url());
     });
     await page.goto("/");
-    await expect(page.locator("time").first()).not.toBeEmpty();
+    await expect(
+      page.getByRole("button", { name: "Leaderboard season", exact: true }),
+    ).toBeVisible();
     const trigger = page
       .getByRole("button", { name: /View .+ profile/ })
       .filter({ visible: true })
@@ -177,14 +179,13 @@ test("an open dashboard resets at midnight and historic profiles retain their ow
     });
   });
   await page.goto("/");
-  await expect(page.locator("time").first()).not.toBeEmpty();
   await expect(
-    page.getByText("Season 1 · Current season", { exact: true }).last(),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Leaderboard season", exact: true }),
+  ).toHaveText("Season 1 · Current season");
   await page.clock.runFor(2200);
   await expect(
-    page.getByText("Season 2 · Current season", { exact: true }).last(),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Leaderboard season", exact: true }),
+  ).toHaveText("Season 2 · Current season");
   await expect(
     page.getByText("No games played yet", { exact: true }),
   ).toBeVisible();
@@ -250,7 +251,9 @@ test("historical rankings open matching profiles, retry failures, and combine hi
     }),
   );
   await page.goto("/");
-  await expect(page.locator("time").first()).not.toBeEmpty();
+  await expect(
+    page.getByRole("button", { name: "Leaderboard season", exact: true }),
+  ).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(
     page.getByRole("button", { name: "Leaderboard season" }),
@@ -316,7 +319,9 @@ test("historical rankings open matching profiles, retry failures, and combine hi
       .first(),
   ).toBeVisible();
   await page.goto("/");
-  await expect(page.locator("time").first()).not.toBeEmpty();
+  await expect(
+    page.getByRole("button", { name: "Leaderboard season", exact: true }),
+  ).toBeVisible();
   const requests = [];
   await page.route("**/api/games*", (route) => {
     requests.push(new URL(route.request().url()).searchParams);
@@ -358,4 +363,89 @@ test("old season links redirect to the leaderboard and unavailable seasons are r
     ).toBeVisible();
   }
   assert.deepEqual(errors, []);
+});
+
+test("owner season cadence previews dates, preserves failed selections and refreshes after saving at both sizes", async (context) => {
+  for (const width of [390, 1280]) {
+    const { page, errors } = await open(context, width);
+    const initial = await (await page.request.get("/api/state")).json();
+    let settings = initial.seasonSettings;
+    let fail = true;
+    const saves = [];
+    await page.route("**/api/seasons/settings", (route) => {
+      saves.push(route.request().postDataJSON());
+      if (fail)
+        return route.fulfill({
+          status: 503,
+          json: { error: "Could not save season cadence." },
+        });
+      settings = { ...saves.at(-1), revision: settings.revision + 1 };
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.route("**/api/state", (route) =>
+      route.fulfill({
+        json: {
+          ...initial,
+          seasonSettings: settings,
+          season:
+            settings.cadenceMonths === 1
+              ? {
+                  ...initial.season,
+                  id: 4,
+                  label: "Season 4",
+                  startsAt: "2026-10-01T07:00:00.000Z",
+                  endsAt: "2026-11-01T07:00:00.000Z",
+                }
+              : initial.season,
+        },
+      }),
+    );
+    await page.goto("/admin");
+    await expect(page.getByLabel("Played at")).not.toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "Season cadence", exact: true }),
+    ).toHaveText("Every 6 months");
+    await expect(
+      page.getByRole("button", { name: "Save and recalculate" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Refresh settings" }),
+    ).toHaveCount(0);
+    await select(page, "Season cadence", "Monthly");
+    await expect(page.getByText(/After saving: Season/)).toBeVisible();
+    await page.getByRole("button", { name: "Save and recalculate" }).click();
+    await expect(page.getByRole("alert")).toHaveText(
+      "Could not save season cadence.",
+    );
+    await expect(
+      page.getByRole("button", { name: "Season cadence", exact: true }),
+    ).toHaveText("Monthly");
+    await expect(
+      page.getByRole("button", { name: "Refresh settings" }),
+    ).toBeVisible();
+    fail = false;
+    await page.getByRole("button", { name: "Save and recalculate" }).click();
+    await expect(
+      page.getByText(
+        "Season cadence saved. Stats and standings now use the new schedule.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText("Current schedule: Season 4")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save and recalculate" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Refresh settings" }),
+    ).toHaveCount(0);
+    assert.deepEqual(saves, [
+      { cadenceMonths: 1, revision: initial.seasonSettings.revision },
+      { cadenceMonths: 1, revision: initial.seasonSettings.revision },
+    ]);
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    );
+    assert.deepEqual(errors, []);
+  }
 });

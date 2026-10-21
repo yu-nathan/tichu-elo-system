@@ -1,4 +1,4 @@
-import type { Season } from "./seasons.ts";
+import type { Season, SeasonSettings } from "./seasons.ts";
 import type {
   EloPlayer,
   EloGame,
@@ -20,6 +20,7 @@ export type Game = EloGame & {
   callStats: GameCallStat[];
 };
 export type AppData = {
+  seasonSettings: SeasonSettings;
   season: Season;
   players: Player[];
   games: Game[];

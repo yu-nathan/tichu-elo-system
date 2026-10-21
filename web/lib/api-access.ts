@@ -8,10 +8,14 @@ import {
 import { createApiStore, type ApiDatabase } from "./external-api-store.ts";
 
 export type OwnerIdentity = { userId: string; email: string } | null;
-export const authorizeApiOwner = (request: Request, user: OwnerIdentity) => {
+export const authorizeApiOwner = (
+  request: Request,
+  user: OwnerIdentity,
+  purpose = "API access",
+) => {
   // Never combine a bearer credential with an owner's browser identity.
   if (request.headers.has("authorization") || !user?.userId)
-    throw new ApiFailure(401, "Sign in with ChatGPT to manage API access.");
+    throw new ApiFailure(401, `Sign in with ChatGPT to manage ${purpose}.`);
   if (!isOwner(user.email)) throw new ApiFailure(403, "Owner access required.");
   if (
     request.method !== "GET" &&

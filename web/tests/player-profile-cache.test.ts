@@ -129,3 +129,43 @@ test("failures can be retried without a request loop or clearing cached stats", 
   assert.equal(cache.get(1, null).error, null);
   assert.equal(calls, 3);
 });
+
+test("hover prefetch shares data with opening, keeps failures silent, and retries on demand", async () => {
+  let calls = 0;
+  let fail = true;
+  const cache = createPlayerProfileCache(
+    async (id, _signal, seasonId = null) => {
+      calls++;
+      if (fail) throw new Error("Offline");
+      return profileFor(id, seasonId);
+    },
+  );
+  await cache.prefetch(1, null);
+  assert.equal(cache.get(1, null).error, null);
+  assert.equal(cache.get(1, null).stale, true);
+  fail = false;
+  await cache.load(1, null);
+  await cache.prefetch(1, null);
+  assert.equal(calls, 2);
+  cache.invalidate();
+  await cache.prefetch(1, null);
+  assert.equal(calls, 3);
+  await cache.load(1, null);
+  assert.equal(calls, 3);
+});
+
+test("opening a pending prefetch promotes failures to the visible retry UI", async () => {
+  let reject!: (error: Error) => void;
+  const cache = createPlayerProfileCache(
+    () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  const pending = cache.prefetch(1, null);
+  await cache.load(1, null);
+  reject(new Error("Connection lost"));
+  await pending;
+  assert.equal(cache.get(1, null).error, "Connection lost");
+  assert.equal(cache.get(1, null).stale, false);
+});

@@ -1,5 +1,6 @@
 import { useId, type CSSProperties } from "react";
 import { useDecodedImage } from "@/hooks/use-decoded-image";
+import seasonalAssets from "@/lib/seasonal-assets.json";
 import artCrops from "@/lib/seasonal-art-crops.json";
 import type { SeasonalTheme } from "@/lib/seasonal-theme";
 
@@ -23,11 +24,11 @@ export const SeasonalArt = ({
   const crop = artCrops[theme][artworkVariant];
   const standaloneSource =
     theme === "thanksgiving" && artworkVariant === 0
-      ? "/seasonal/thanksgiving-turkey.png"
+      ? seasonalAssets["thanksgiving-turkey"]
       : theme === "july-fourth" && artworkVariant === 1
-        ? "/seasonal/july-fourth-fireworks.png"
+        ? seasonalAssets["july-fourth-fireworks"]
         : null;
-  const source = standaloneSource ?? `/seasonal/${theme}-atlas.png`;
+  const source = standaloneSource ?? seasonalAssets[`${theme}-atlas`];
   const ready = useDecodedImage(source);
   return (
     <svg
@@ -46,7 +47,7 @@ export const SeasonalArt = ({
         </clipPath>
       </defs>
       <image
-        href={source}
+        href={ready ? source : undefined}
         width={standaloneSource ? 1024 : 1254}
         height={standaloneSource ? 1024 : 1254}
         clipPath={standaloneSource ? undefined : `url(#${clipId})`}
@@ -173,7 +174,7 @@ const Particle = ({
 );
 
 const HalloweenWeb = () => {
-  const source = "/seasonal/halloween-spider.png";
+  const source = seasonalAssets["halloween-spider"];
   const ready = useDecodedImage(source);
   return (
     <svg
@@ -195,7 +196,13 @@ const HalloweenWeb = () => {
         data-art-ready={ready}
         style={{ opacity: ready ? 1 : 0 }}
       >
-        <image href={source} x="-20" y="-20" width="40" height="40" />
+        <image
+          href={ready ? source : undefined}
+          x="-20"
+          y="-20"
+          width="40"
+          height="40"
+        />
       </g>
     </svg>
   );

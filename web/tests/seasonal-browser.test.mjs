@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import seasonalAssets from "../lib/seasonal-assets.json" with { type: "json" };
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { SEASONAL_THEMES, THEME_LABELS } from "../lib/seasonal-theme.ts";
@@ -112,7 +113,9 @@ test("mobile selects its palette before app scripts load and preserves it throug
         "data-colorblind",
         String(Boolean(scenario.colorBlind)),
       );
-      await expect(page.getByText("Tichu Elo", { exact: true })).toBeVisible();
+      await expect(
+        page.getByText("Tichu Elo", { exact: true }).filter({ visible: true }),
+      ).toBeVisible();
       await page.evaluate(() => {
         window.observedSeasons = [];
         new MutationObserver(() => {
@@ -313,7 +316,13 @@ test("leaderboard reserves its themed heading before hydration and image decodin
         };
       });
       await page.goto(`/?theme=${theme}`, { waitUntil: "commit" });
-      const header = page.locator('[data-slot="card-header"]').first();
+      // The streamed shell has placeholder cards before the real leaderboard arrives.
+      const header = page.locator('[data-slot="card-header"]').filter({
+        has: page.getByRole("button", {
+          name: "Leaderboard season",
+          exact: true,
+        }),
+      });
       const bounds = async () => ({
         header: await header.boundingBox(),
         title: await header
@@ -412,7 +421,7 @@ test("late or failed artwork never flashes into a different theme", async (conte
   const pending = new Promise((resolve) => {
     release = resolve;
   });
-  await page.route("**/seasonal/christmas-atlas.png", async (route) => {
+  await page.route(`**${seasonalAssets["christmas-atlas"]}`, async (route) => {
     await pending;
     await route.continue();
   });
@@ -434,7 +443,9 @@ test("late or failed artwork never flashes into a different theme", async (conte
     "transition-duration",
     "0s",
   );
-  await page.route("**/seasonal/thanksgiving*.png", (route) => route.abort());
+  await page.route("**/seasonal/generated/thanksgiving*.webp", (route) =>
+    route.abort(),
+  );
   await page.goto("/?theme=thanksgiving");
   await expectTheme(page, "thanksgiving");
   await expect(
@@ -621,7 +632,7 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
       if (theme === "july-fourth") {
         await expect(
           page.locator(".seasonal-heading-art image"),
-        ).toHaveAttribute("href", "/seasonal/july-fourth-fireworks.png");
+        ).toHaveAttribute("href", seasonalAssets["july-fourth-fireworks"]);
       }
       const artworkMotion = await page
         .locator(".seasonal-art")
@@ -718,15 +729,15 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
           .getByRole("tab", { name: "Leaderboard", exact: true })
           .click();
       const assetResponse = await page.request.get(
-        `/seasonal/${theme}-atlas.png`,
+        seasonalAssets[`${theme}-atlas`],
       );
       assert.equal(assetResponse.status(), 200);
-      assert.match(assetResponse.headers()["content-type"], /image\/png/);
-      await page.evaluate(async (name) => {
+      assert.match(assetResponse.headers()["content-type"], /image\/webp/);
+      await page.evaluate(async (source) => {
         const art = new Image();
-        art.src = `/seasonal/${name}-atlas.png`;
+        art.src = source;
         await art.decode();
-      }, theme);
+      }, seasonalAssets[`${theme}-atlas`]);
       if (process.env.TICHU_PREVIEW_DIR) {
         await mkdir(process.env.TICHU_PREVIEW_DIR, { recursive: true });
         await page.evaluate(() => document.fonts.ready);
@@ -821,11 +832,11 @@ test("site-wide themes share controls, previews, and preferences with the admin 
         true,
       );
       if (process.env.TICHU_PREVIEW_DIR) {
-        await page.evaluate(async (name) => {
+        await page.evaluate(async (source) => {
           const art = new Image();
-          art.src = `/seasonal/${name}-atlas.png`;
+          art.src = source;
           await art.decode();
-        }, theme);
+        }, seasonalAssets[`${theme}-atlas`]);
         await page.screenshot({
           path: join(
             process.env.TICHU_PREVIEW_DIR,

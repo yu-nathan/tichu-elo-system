@@ -1,11 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import type { PlayerProfileCache } from "@/lib/player-profile-cache";
 import { usePlayerProfile } from "@/hooks/use-player-profile";
 import { seasonDateLabel, type Season } from "@/lib/seasons";
 import { SeasonSelect } from "@/components/season-select";
-import { PlayerProfileContent } from "./player-profile";
+import {
+  getProfileContent,
+  preloadProfileContent,
+} from "@/lib/profile-content-resource";
 import {
   DialogContent,
   DialogDescription,
@@ -27,6 +30,26 @@ export const PlayerProfileLoader = ({
   initialSeason: Season;
   seasons: Season[];
 }) => {
+  const [Content, setContent] = useState<Awaited<
+    ReturnType<typeof preloadProfileContent>
+  > | null>(() => getProfileContent() ?? null);
+  const [contentError, setContentError] = useState(false);
+  const [contentAttempt, setContentAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setContentError(false);
+    void preloadProfileContent().then(
+      (component) => {
+        if (!cancelled) setContent(() => component);
+      },
+      () => {
+        if (!cancelled) setContentError(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [contentAttempt]);
   const [tab, setTab] = useState(
     initialSeason.status === "completed" ? "historic" : "current",
   );
@@ -47,40 +70,51 @@ export const PlayerProfileLoader = ({
     playerId,
     selectedId,
   );
-  const body = error ? (
-    <div className="space-y-3 py-4">
-      <p role="alert">{error}</p>
-      <Button onClick={retry}>Retry profile</Button>
-    </div>
-  ) : noHistory ? (
-    <p className="py-6 text-sm text-muted-foreground">
-      No completed seasons yet.
-    </p>
-  ) : !profile || profile.season.id !== (selectedId ?? initialSeasons[0].id) ? (
-    <div className="space-y-3 py-4">
-      <output className="sr-only">Loading profile…</output>
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-48 w-full" />
-    </div>
-  ) : (
-    <div className="mt-3 space-y-3">
-      <p className="text-sm font-medium">
-        {profile.season.label} ·{" "}
-        {profile.season.status === "completed" ? "Final" : "Current"}
-        {profile.rank === null ? " · Unranked" : ` · Rank #${profile.rank}`}
+  const body =
+    error || contentError ? (
+      <div className="space-y-3 py-4">
+        <p role="alert">{error ?? "Could not load profile. Try again."}</p>
+        <Button
+          onClick={() => {
+            if (error) retry();
+            if (contentError) setContentAttempt((value) => value + 1);
+          }}
+        >
+          Retry profile
+        </Button>
+      </div>
+    ) : noHistory ? (
+      <p className="py-6 text-sm text-muted-foreground">
+        No completed seasons yet.
       </p>
-      <p className="text-xs text-muted-foreground">
-        {seasonDateLabel(profile.season)}
-      </p>
-      {profile.season.status === "completed" && !profile.player.gamesPlayed ? (
-        <p className="py-4 text-sm text-muted-foreground">
-          No participation in this season.
+    ) : !Content ||
+      !profile ||
+      profile.season.id !== (selectedId ?? initialSeasons[0].id) ? (
+      <div className="space-y-3 py-4">
+        <output className="sr-only">Loading profile…</output>
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    ) : (
+      <div className="mt-3 space-y-3">
+        <p className="text-sm font-medium">
+          {profile.season.label} ·{" "}
+          {profile.season.status === "completed" ? "Final" : "Current"}
+          {profile.rank === null ? " · Unranked" : ` · Rank #${profile.rank}`}
         </p>
-      ) : (
-        <PlayerProfileContent profile={profile} />
-      )}
-    </div>
-  );
+        <p className="text-xs text-muted-foreground">
+          {seasonDateLabel(profile.season)}
+        </p>
+        {profile.season.status === "completed" &&
+        !profile.player.gamesPlayed ? (
+          <p className="py-4 text-sm text-muted-foreground">
+            No participation in this season.
+          </p>
+        ) : (
+          <Content profile={profile} />
+        )}
+      </div>
+    );
   return (
     <DialogContent className="h-[90dvh] max-w-5xl">
       <DialogTitle className="break-words pr-8 text-2xl font-semibold">

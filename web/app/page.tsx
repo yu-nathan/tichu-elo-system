@@ -7,10 +7,12 @@ import { Dashboard } from "@/components/dashboard";
 import { getAdmin } from "@/lib/admin";
 import { isOwner } from "@/lib/admin-access";
 import { getDashboardData } from "@/lib/store";
+import { Suspense } from "react";
+import DashboardLoading from "@/components/dashboard/dashboard-loading";
 
 export const dynamic = "force-dynamic";
 
-const Home = async ({
+const DashboardPage = async ({
   searchParams,
 }: {
   searchParams: Promise<{ seasonId?: string }>;
@@ -47,5 +49,11 @@ const Home = async ({
     />
   );
 };
+
+const Home = (props: { searchParams: Promise<{ seasonId?: string }> }) => (
+  <Suspense fallback={<DashboardLoading />}>
+    <DashboardPage {...props} />
+  </Suspense>
+);
 
 export default Home;

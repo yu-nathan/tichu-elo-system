@@ -1,3 +1,4 @@
+import type { SeasonSettings } from "./seasons.ts";
 import type { SeasonalPlayerProfile } from "./player-profile.ts";
 import type { AdminEntry } from "./admin-access.ts";
 import type {
@@ -166,4 +167,8 @@ export const fetchSeasonStandings = async (
   )
     throw new Error("Could not load this season. Try again.");
   return data;
+};
+
+export const saveSeasonSettings = async (settings: SeasonSettings) => {
+  await request("/api/seasons/settings", "PATCH", settings);
 };

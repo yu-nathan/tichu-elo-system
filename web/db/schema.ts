@@ -175,3 +175,43 @@ export const apiReadAttempts = sqliteTable(
     index("idx_api_reads_key_at").on(table.keyId, table.at),
   ],
 );
+
+export const seasonSettings = sqliteTable(
+  "season_settings",
+  {
+    id: integer("id").primaryKey(),
+    cadenceMonths: integer("cadence_months").notNull().default(6),
+    revision: integer("revision").notNull().default(0),
+  },
+  (table) => [
+    check("season_settings_singleton", sql`${table.id} = 1`),
+    check(
+      "season_settings_cadence",
+      sql`${table.cadenceMonths} IN (1, 3, 6, 12)`,
+    ),
+    check("season_settings_revision", sql`${table.revision} >= 0`),
+  ],
+);
+
+export const dashboardRevision = sqliteTable(
+  "dashboard_revision",
+  {
+    id: integer("id").primaryKey(),
+    revision: integer("revision").notNull().default(0),
+  },
+  (table) => [check("dashboard_revision_singleton", sql`${table.id} = 1`)],
+);
+
+export const dashboardSnapshot = sqliteTable(
+  "dashboard_snapshot",
+  {
+    id: integer("id").primaryKey(),
+    dataRevision: integer("data_revision").notNull(),
+    schemaVersion: integer("schema_version").notNull(),
+    seasonId: integer("season_id").notNull(),
+    settingsRevision: integer("settings_revision").notNull(),
+    payload: text("payload").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (table) => [check("dashboard_snapshot_singleton", sql`${table.id} = 1`)],
+);

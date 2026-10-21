@@ -13,6 +13,7 @@ import type { RatingEntry } from "@/lib/elo";
 import type { PlayerProfileCache } from "@/lib/player-profile-cache";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { PlayerProfileLoader } from "@/components/dashboard/player-profile-loader";
+import { preloadProfileContent } from "@/lib/profile-content-resource";
 import { SeasonalArt } from "@/components/dashboard/seasonal-decorations";
 
 export const LeaderboardCard = ({
@@ -41,6 +42,13 @@ export const LeaderboardCard = ({
   onCopy: () => void;
 }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
+  const preload = (playerId: number) => {
+    void preloadProfileContent().catch(() => {});
+    void profileCache.prefetch(
+      playerId,
+      season.status === "completed" ? season.id : null,
+    );
+  };
   return (
     <Dialog>
       <Card className="h-full min-h-0 border-white/8 bg-card/80 shadow-2xl shadow-black/20">
@@ -142,6 +150,7 @@ export const LeaderboardCard = ({
                   <PlayerTrigger
                     player={player}
                     onSelect={setSelectedPlayerId}
+                    onPreload={preload}
                   />
                   <span className="text-right font-mono text-seasonal-rating">
                     {player.rating.toFixed(1)}
@@ -165,6 +174,7 @@ export const LeaderboardCard = ({
                       <PlayerTrigger
                         player={player}
                         onSelect={setSelectedPlayerId}
+                        onPreload={preload}
                       />
                     </div>
                     <span className="font-mono text-seasonal-rating">
@@ -209,12 +219,19 @@ export const LeaderboardCard = ({
 const PlayerTrigger = ({
   player,
   onSelect,
+  onPreload,
 }: {
   player: RatingEntry;
   onSelect: (id: number) => void;
+  onPreload: (id: number) => void;
 }) => (
   <DialogTrigger
-    onClick={() => onSelect(player.id)}
+    onPointerEnter={() => onPreload(player.id)}
+    onFocus={() => onPreload(player.id)}
+    onClick={() => {
+      onPreload(player.id);
+      onSelect(player.id);
+    }}
     aria-label={`View ${player.name}'s profile`}
     className="min-w-0 max-w-full cursor-pointer truncate rounded-sm text-left font-medium underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring"
   >

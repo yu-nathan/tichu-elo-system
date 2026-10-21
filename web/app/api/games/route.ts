@@ -1,4 +1,4 @@
-import { parseSeasonId } from "@/lib/seasons";
+import { parseRequestedSeasonId } from "@/lib/seasons";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { requireAdminApi } from "@/lib/admin";
@@ -24,7 +24,7 @@ export const GET = async (request: Request) => {
       await getGamePage(
         params.get("cursor"),
         parseHistoryPlayerId(params.get("playerId")),
-        parseSeasonId(params.get("seasonId")),
+        parseRequestedSeasonId(params.get("seasonId")),
       ),
       { headers: { "Cache-Control": "no-store" } },
     );

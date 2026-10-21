@@ -9,6 +9,7 @@ const decodeImage = (source: string) => {
   const cached = decodedImages.get(source);
   if (cached) return cached;
   const image = new Image();
+  image.fetchPriority = "low";
   image.src = source;
   const pending = image.decode().catch((error: unknown) => {
     decodedImages.delete(source);
