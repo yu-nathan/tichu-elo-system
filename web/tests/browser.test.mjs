@@ -427,6 +427,7 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         "Dragging me down",
         /^I'm (his|her|their) bitch$/,
         "Nemesis",
+        "Curbstomped",
       ]) {
         await expect(
           dialog.getByRole("heading", { name: title, exact: true }),
@@ -555,12 +556,6 @@ test("player profiles show accurate stats, restore focus, and preserve the match
             record[field] > 0 &&
             (field !== "wins" || record.wins / record.games > 0.5),
         );
-        if (field === "wins" && !eligible.length) {
-          await expect(
-            dialog.getByRole("heading", { name: title, exact: true }),
-          ).toHaveCount(0);
-          continue;
-        }
         const opponentScore = (record) =>
           score({
             successes: record[field],
@@ -584,9 +579,11 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         }
         if (!leaders.length)
           await expect(card).toContainText(
-            [...opponents.values()].some(({ games }) => games >= 3)
-              ? `No ${field} against eligible opponents yet`
-              : "Play at least 3 games against an opponent",
+            field === "wins"
+              ? "No one is getting curbstomped yet"
+              : [...opponents.values()].some(({ games }) => games >= 3)
+                ? `No ${field} against eligible opponents yet`
+                : "Play at least 3 games against an opponent",
           );
       }
       const help = dialog.getByRole("button", {

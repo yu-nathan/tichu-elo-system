@@ -105,8 +105,8 @@ export const PlayerProfileContent = ({
             Carrying me, Dragging me down, and {partnerTitle} require at least{" "}
             {MIN_PARTNER_GAMES} games together. Nemesis and Curbstomped require
             at least {MIN_OPPONENT_GAMES} games against the same opponent.
-            Curbstomped only appears for win rates over 50%. Rankings balance
-            success rates with games played, giving less weight to small
+            Curbstomped only lists opponents with win rates over 50%. Rankings
+            balance success rates with games played, giving less weight to small
             samples. Percentages show your actual results.
           </InfoTooltip>
         </div>
@@ -207,20 +207,14 @@ export const PlayerProfileContent = ({
             }
             icon={<Swords className="size-5" />}
           />
-          {profile.curbstomped.length > 0 && (
-            <PlayerHighlight
-              title="Curbstomped"
-              description="Win rate against an opponent, weighted by games"
-              partners={profile.curbstomped}
-              detail={(person) => formatOutcome(person, "wins")}
-              empty={
-                profile.hasEligibleOpponents
-                  ? "No win rates over 50% against eligible opponents yet"
-                  : `Play at least ${MIN_OPPONENT_GAMES} games against an opponent`
-              }
-              icon={<Trophy className="size-5" />}
-            />
-          )}
+          <PlayerHighlight
+            title="Curbstomped"
+            description="Win rate against an opponent, weighted by games"
+            partners={profile.curbstomped}
+            detail={(person) => formatOutcome(person, "wins")}
+            empty="No one is getting curbstomped yet"
+            icon={<Trophy className="size-5" />}
+          />
         </div>
       </div>
     </>
