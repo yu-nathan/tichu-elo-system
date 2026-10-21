@@ -139,3 +139,46 @@ to 332 ms as resolved content replaces the streamed shell; repeat first paint
 remained similar. Streaming is not a demonstrated across-the-board paint win
 on localhost, where the database wait is short. Hosted results must be assessed
 separately. Raw final local samples: `web/outputs/performance/local-streaming.json`.
+
+## Production release
+
+Sites version **46** deployed successfully to
+<https://tichu-elo.nyu1997.chatgpt.site> on October 21, 2026.
+
+- GitHub application commit: `00cf8b3cf64bbafc88205c0d7a1ffabeec51c5b4` on `main`.
+- Sites source commit: `425ce9d4780f67cc28636d75f73f508627776869`.
+- Both have the identical web-source tree: `088075097359d6ab26d7fc4635aed839709d1096`.
+- Deployment: `appgdep_6ad896dedcf48191a7b19856da161dc7`.
+- Public audience and D1 binding `DB` were preserved.
+
+The live database exposes `season_settings`, `dashboard_revision`, and
+`dashboard_snapshot` after deployment. Public homepage and dashboard requests
+returned 200 with `no-store`; anonymous HTML contained sign-in controls and no
+Manage control. Two repeated dashboard API requests reported cache reads only
+(40 ms and 31 ms), confirming snapshot hits without replay in those samples.
+These are data-loading timings, not full-page timings. No production game or
+player records were written during verification.
+
+Live after deployment, five fresh and five repeat samples per device:
+
+| Sample          |    First byte (ms) |       First paint (ms) |     Largest paint (ms) |   JS execution (ms) |                    CLS |       Transfer (MB) |
+| --------------- | -----------------: | ---------------------: | ---------------------: | ------------------: | ---------------------: | ------------------: |
+| desktop, fresh  | 214.8 [82.0–938.2] |   328.0 [196.0–1132.0] |   328.0 [196.0–1164.0] |    79.3 [77.1–83.8] | 0.0000 [0.0000–0.0002] | 1.420 [1.420–1.420] |
+| desktop, repeat |  57.6 [48.8–699.2] |   140.0 [132.0–1428.0] |   172.0 [164.0–1428.0] |    28.6 [24.7–29.6] | 0.0000 [0.0000–0.0000] | 0.021 [0.021–0.021] |
+| mobile, fresh   | 154.8 [84.2–237.5] | 1124.0 [1104.0–1140.0] | 1124.0 [1104.0–1140.0] | 293.3 [282.0–307.2] | 0.0000 [0.0000–0.0000] | 1.401 [1.401–1.401] |
+| mobile, repeat  |  75.0 [52.7–700.5] |   436.0 [416.0–1420.0] |   436.0 [416.0–1420.0] |    76.5 [72.7–78.9] | 0.0000 [0.0000–0.0000] | 0.020 [0.020–0.020] |
+
+These live before/after samples include the complete release: WebP artwork,
+profile preloading, the dashboard cache, streaming, and deferred panels. They
+cannot isolate the benefit of streaming alone. Fresh desktop first paint fell
+from 784 ms to 328 ms; fresh mobile first paint fell from 1276 ms to 1124 ms.
+Fresh transferred bytes fell from approximately 4.76 MB to 1.42 MB on desktop
+and 1.40 MB on mobile. Slow repeat-request outliers remain (largest paint up to
+1428 ms desktop and 1420 ms mobile), so this is not a latency guarantee.
+Raw live samples: `web/outputs/performance/live-after.json`.
+
+Live anonymous browser smoke checks passed at 390px and 1440px: profiles open,
+Matchmaker and History render, hidden mobile panels avoid early downloads, and
+no page errors were reported. These checks did not exercise a real signed-in
+owner session or create production games; those boundaries were covered by the
+local regression suites described above.
