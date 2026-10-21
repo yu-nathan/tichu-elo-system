@@ -251,10 +251,10 @@ must not be subtracted as sequential stages. Later matched API invocations took
 47–56 ms wall time, while later homepage invocations took 69–70 ms.
 
 An earlier five-round probe also captured a dashboard cache miss: data-loading
-Server-Timing totaled 305 ms, including a 157 ms initial cache read, 45 ms replay
+Server-Timing totaled 305 ms, including 157 ms across cache reads, 45 ms replay
 read, 80 ms history read, and 68 ms snapshot write. Some stages overlap; their
-sum is not the total. Elo was below the integer timer's measured resolution in
-that sample. Later hits took 38–40 ms in the data loader. These samples support
+sum is not the total. Elo reported 0 ms in
+that sample; the Worker timer does not establish zero CPU cost. Later hits took 38–40 ms in the data loader. These samples support
 keeping the snapshot cache and show that remaining outliers cannot be explained
 solely by Elo calculation or D1 reads.
 
@@ -283,3 +283,62 @@ First paint remains about 0.75 seconds under the simulated network because
 decorative images load after hydration; this change principally reduces the
 remaining transfer and artwork wait. Desktop download size is essentially
 unchanged. Raw samples: `web/outputs/performance/local-mobile-artwork.json`.
+
+### Follow-up production release
+
+Sites version **47** deployed successfully on October 21, 2026, preserving the
+public audience and existing database binding. This follow-up requires no new
+migration and does not change server cache behavior.
+
+- GitHub application commit: `0f9747c9ff6a6704d39be595d65112a8311a8d0c` on `main`.
+- Sites source commit: `363f8f8fe359242a32917c1d8e5adddbe43a23c6`.
+- Identical web-source tree: `e076d904dc697a27d70a7aa6ca4aadfb155b15a2`.
+- Deployment: `appgdep_6ad8d8c52f8c819194683f6688f69acd`.
+
+Live version 47, five fresh and five repeat samples per device. Values are
+medians [ranges].
+
+| Sample          |     First byte (ms) |       First paint (ms) |     Largest paint (ms) |   JS execution (ms) |                    CLS |       Transfer (MB) |
+| --------------- | ------------------: | ---------------------: | ---------------------: | ------------------: | ---------------------: | ------------------: |
+| desktop, fresh  | 273.8 [111.6–537.6] |    380.0 [208.0–728.0] |    380.0 [208.0–744.0] |    82.5 [78.0–96.8] | 0.0000 [0.0000–0.0002] | 1.420 [1.420–1.420] |
+| desktop, repeat |    76.5 [47.9–93.2] |    184.0 [160.0–292.0] |    216.0 [196.0–292.0] |    28.4 [24.8–31.2] | 0.0000 [0.0000–0.0000] | 0.021 [0.021–0.021] |
+| mobile, fresh   |  138.2 [86.6–642.4] | 1104.0 [1088.0–1588.0] | 1104.0 [1088.0–1588.0] | 303.4 [299.8–310.1] | 0.0000 [0.0000–0.0002] | 0.646 [0.646–0.646] |
+| mobile, repeat  |    70.5 [61.5–98.0] |    448.0 [384.0–528.0] |    528.0 [384.0–564.0] |    80.7 [71.8–85.2] | 0.0000 [0.0000–0.0000] | 0.020 [0.020–0.020] |
+
+Compared with version 46, fresh mobile transfer fell from 1.401 MB to
+0.646 MB (54% smaller overall). Decorative artwork accounts for essentially
+all of this reduction. First paint remains broadly unchanged; the artwork
+is deliberately outside the first-paint path. Differences in request latency
+and paint timing across these small sequential samples should not be attributed
+to a server improvement: this release did not change the backend. Raw samples:
+`web/outputs/performance/live-mobile-artwork.json`.
+
+Live anonymous smoke checks passed at 320px, 390px, and 1440px: the intended
+mobile/desktop assets returned 200 and decoded successfully, no horizontal
+overflow or page errors appeared, profile dialogs opened, and Matchmaker and
+Recent games rendered. Anonymous visitors had sign-in controls and no Manage
+control. Homepage responses retained `no-store`. No production records were
+mutated, and these checks did not use a real signed-in owner session.
+
+One hosting discrepancy remains: both previous desktop WebP files and new
+mobile files return `Content-Type: application/octet-stream` and
+`Cache-Control: public, max-age=0, must-revalidate`. The checked responses had
+`CF-Cache-Status: HIT`. The deployed response does not honor the immutable
+one-year policy in `public/_headers`; the source file and packaged copy both
+contain that rule. Browsers decoded the images correctly, but repeat-load
+results must not be described as guaranteed request-free immutable caching.
+The initial smoke assertion expecting `image/webp` failed on this metadata;
+a follow-up check explicitly recorded the actual metadata and verified decode
+and interactions. Hosting asset-header behavior is a concrete follow-up for
+repeat-load latency, separate from the proven mobile byte reduction.
+
+Live screenshots: `web/outputs/mobile-artwork-previews/live-halloween-320.png`,
+`live-halloween-390.png`, and `live-halloween-1440.png`. Local theme screenshots
+include `{theme}-desktop.png` and `{theme}-mobile.png` for every seasonal theme
+in that same directory. Animated production previews are available through
+`?theme=<theme>` without changing saved preferences.
+
+At 320px, visual inspection also shows the existing seasonal heading badge
+wrapping inside its fixed-height pill. This follow-up leaves the heading CSS
+and layout unchanged; the screenshot is retained rather than treating that
+narrow-screen text layout as newly validated artwork behavior.
