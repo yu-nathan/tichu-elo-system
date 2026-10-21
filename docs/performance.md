@@ -182,3 +182,104 @@ Matchmaker and History render, hidden mobile panels avoid early downloads, and
 no page errors were reported. These checks did not exercise a real signed-in
 owner session or create production games; those boundaries were covered by the
 local regression suites described above.
+
+## Mobile artwork and server-latency follow-up
+
+Mobile viewports below 640 CSS pixels now select smaller, content-hashed WebP
+variants before starting any image request. Desktop originals remain available;
+resizing across the breakpoint switches resolution through the existing shared
+decode cache. Atlas view boxes, crop coordinates, transparency, animations, and
+reserved heading dimensions are unchanged. Variants use quality 85 and full
+alpha quality: 768px atlases, 512px standalone illustrations, and a 160px spider.
+
+Total artwork bytes for each theme (decimal KB; only the selected theme downloads):
+
+| Theme        | Previous mobile KB | New mobile KB | Reduction |
+| ------------ | -----------------: | ------------: | --------: |
+| Halloween    |            1,008.7 |         253.9 |     74.8% |
+| Thanksgiving |              980.4 |         350.7 |     64.2% |
+| Christmas    |              578.8 |         255.4 |     55.9% |
+| New Year     |              533.9 |         232.4 |     56.5% |
+| Valentine's  |              499.8 |         217.4 |     56.5% |
+| Spring       |              539.8 |         234.1 |     56.6% |
+| Easter       |              561.6 |         245.3 |     56.3% |
+| Summer       |              474.9 |         207.6 |     56.3% |
+| July Fourth  |            1,420.4 |         430.1 |     69.7% |
+
+Validation passed: 133 unit/database tests, 49 browser tests (34 existing UI,
+11 loading, and four new responsive-artwork checks), type checking, and the
+production build. One pre-existing browser test remains skipped. New checks
+cover all nine themes at 3x device scale, one shared atlas request, no desktop
+artwork downloads on mobile, breakpoint resizing, failed downloads, and late
+decodes. Asset checks verify dimensions, hashes, size reductions, and lossless
+alpha against resized originals. Visual review covered every mobile theme;
+3x comparisons against original-resolution artwork covered Halloween,
+Thanksgiving, July Fourth, and Spring. Screenshots are retained locally under
+`web/outputs/mobile-artwork-previews/` and `mobile-artwork-comparison/`.
+
+### Server latency investigation
+
+The new `npm run measure:server` script measures five rounds of anonymous,
+read-only requests to a static icon, dashboard API, and homepage over a shared
+keep-alive connection. It records DNS/TCP/TLS milestones, first-byte and complete
+response timings, aggregate Server-Timing, and diagnostic request IDs. It does
+not persist response bodies, cookies, or identity information.
+
+The confirmation probe against version 46 on October 21, 2026, at approximately
+15:14 UTC produced these medians [ranges], in milliseconds:
+
+| Request       |          First byte |   Complete response |
+| ------------- | ------------------: | ------------------: |
+| Static icon   |   67.0 [59.2–822.3] |   67.1 [59.3–822.9] |
+| Dashboard API | 124.9 [109.4–653.6] | 125.1 [111.5–656.1] |
+| Homepage      |  105.7 [65.9–153.8] | 156.8 [121.1–257.5] |
+
+Matching Cloudflare request IDs to Worker logs provides stronger attribution
+than comparing unrelated requests:
+
+| Request ID         | Request             | Client first byte | Worker wall time | Worker CPU | Dashboard calculation timing |
+| ------------------ | ------------------- | ----------------: | ---------------: | ---------: | ---------------------------- |
+| `a4e136020db0cf0e` | Static icon         |            822 ms |             4 ms |       4 ms | None                         |
+| `a4e13606dc51cf0e` | Dashboard cache hit |            654 ms |           115 ms |      10 ms | 104 ms cache read            |
+| `a4e1360ae81ecf0e` | Homepage            |            154 ms |           164 ms |     105 ms | 54 ms cache read             |
+
+The slow static request completed TLS setup at 59 ms, yet reached its first byte
+at 822 ms. The measured Worker accounts for only 4 ms. The API outlier similarly
+has substantial time outside the measured Worker. Homepage streaming can return
+a first byte before the Worker finishes, so its first-byte and Worker totals
+must not be subtracted as sequential stages. Later matched API invocations took
+47–56 ms wall time, while later homepage invocations took 69–70 ms.
+
+An earlier five-round probe also captured a dashboard cache miss: data-loading
+Server-Timing totaled 305 ms, including a 157 ms initial cache read, 45 ms replay
+read, 80 ms history read, and 68 ms snapshot write. Some stages overlap; their
+sum is not the total. Elo was below the integer timer's measured resolution in
+that sample. Later hits took 38–40 ms in the data loader. These samples support
+keeping the snapshot cache and show that remaining outliers cannot be explained
+solely by Elo calculation or D1 reads.
+
+This evidence does not distinguish hosting dispatch, Worker initialization,
+intermediary routing, or network delay outside the measured Worker. Request-log
+sampling and ingestion delay also leave some requests unmatched. No background
+warming, periodic pings, cache lifetime changes, or production data mutations
+were introduced. Raw probes and sanitized Worker timings are retained locally
+as `server-latency-v46*.json` and `server-worker-timings*.json` under
+`web/outputs/performance/`.
+
+### Local production-build measurements
+
+Five fresh and five repeat samples per device, using the same throttling as
+the version 46 measurements above. Values are medians [ranges].
+
+| Sample          |  First byte (ms) |    First paint (ms) |  Largest paint (ms) |   JS execution (ms) |                    CLS |       Transfer (MB) |
+| --------------- | ---------------: | ------------------: | ------------------: | ------------------: | ---------------------: | ------------------: |
+| desktop, fresh  |   9.4 [8.2–10.8] |    48.0 [40.0–72.0] |    48.0 [40.0–72.0] |    51.3 [50.5–51.4] | 0.0002 [0.0002–0.0002] | 1.420 [1.420–1.420] |
+| desktop, repeat | 12.4 [10.1–20.0] |    44.0 [40.0–48.0] |    44.0 [40.0–48.0] |    19.4 [18.5–19.5] | 0.0002 [0.0002–0.0002] | 0.012 [0.012–0.012] |
+| mobile, fresh   |  10.0 [9.5–11.0] | 752.0 [744.0–756.0] | 752.0 [744.0–756.0] | 191.9 [187.9–201.7] | 0.0000 [0.0000–0.0000] | 0.646 [0.646–0.646] |
+| mobile, repeat  |    8.9 [7.8–9.7] | 216.0 [204.0–228.0] | 324.0 [316.0–332.0] |    68.4 [67.5–73.4] | 0.0000 [0.0000–0.0000] | 0.012 [0.012–0.012] |
+
+Fresh mobile transfer fell from 1.400 MB to 0.646 MB (54% smaller overall).
+First paint remains about 0.75 seconds under the simulated network because
+decorative images load after hydration; this change principally reduces the
+remaining transfer and artwork wait. Desktop download size is essentially
+unchanged. Raw samples: `web/outputs/performance/local-mobile-artwork.json`.

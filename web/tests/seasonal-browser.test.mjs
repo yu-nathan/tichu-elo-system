@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import seasonalAssets from "../lib/seasonal-assets.json" with { type: "json" };
+import mobileAssets from "../lib/seasonal-mobile-assets.json" with { type: "json" };
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { SEASONAL_THEMES, THEME_LABELS } from "../lib/seasonal-theme.ts";
@@ -632,7 +633,12 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
       if (theme === "july-fourth") {
         await expect(
           page.locator(".seasonal-heading-art image"),
-        ).toHaveAttribute("href", seasonalAssets["july-fourth-fireworks"]);
+        ).toHaveAttribute(
+          "href",
+          (viewport.width < 640 ? mobileAssets : seasonalAssets)[
+            "july-fourth-fireworks"
+          ],
+        );
       }
       const artworkMotion = await page
         .locator(".seasonal-art")
@@ -729,15 +735,22 @@ test("all seasonal previews preserve mobile and desktop dashboard interactions",
           .getByRole("tab", { name: "Leaderboard", exact: true })
           .click();
       const assetResponse = await page.request.get(
-        seasonalAssets[`${theme}-atlas`],
+        (viewport.width < 640 ? mobileAssets : seasonalAssets)[
+          `${theme}-atlas`
+        ],
       );
       assert.equal(assetResponse.status(), 200);
       assert.match(assetResponse.headers()["content-type"], /image\/webp/);
-      await page.evaluate(async (source) => {
-        const art = new Image();
-        art.src = source;
-        await art.decode();
-      }, seasonalAssets[`${theme}-atlas`]);
+      await page.evaluate(
+        async (source) => {
+          const art = new Image();
+          art.src = source;
+          await art.decode();
+        },
+        (viewport.width < 640 ? mobileAssets : seasonalAssets)[
+          `${theme}-atlas`
+        ],
+      );
       if (process.env.TICHU_PREVIEW_DIR) {
         await mkdir(process.env.TICHU_PREVIEW_DIR, { recursive: true });
         await page.evaluate(() => document.fonts.ready);

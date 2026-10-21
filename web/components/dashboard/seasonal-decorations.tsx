@@ -1,6 +1,7 @@
 import { useId, type CSSProperties } from "react";
 import { useDecodedImage } from "@/hooks/use-decoded-image";
 import seasonalAssets from "@/lib/seasonal-assets.json";
+import mobileAssets from "@/lib/seasonal-mobile-assets.json";
 import artCrops from "@/lib/seasonal-art-crops.json";
 import type { SeasonalTheme } from "@/lib/seasonal-theme";
 
@@ -22,14 +23,17 @@ export const SeasonalArt = ({
         : 0
       : variant;
   const crop = artCrops[theme][artworkVariant];
-  const standaloneSource =
+  const standaloneName =
     theme === "thanksgiving" && artworkVariant === 0
-      ? seasonalAssets["thanksgiving-turkey"]
+      ? "thanksgiving-turkey"
       : theme === "july-fourth" && artworkVariant === 1
-        ? seasonalAssets["july-fourth-fireworks"]
+        ? "july-fourth-fireworks"
         : null;
-  const source = standaloneSource ?? seasonalAssets[`${theme}-atlas`];
-  const ready = useDecodedImage(source);
+  const assetName = standaloneName ?? `${theme}-atlas`;
+  const { source, ready } = useDecodedImage(
+    seasonalAssets[assetName],
+    mobileAssets[assetName],
+  );
   return (
     <svg
       key={source}
@@ -39,7 +43,7 @@ export const SeasonalArt = ({
       data-art-ready={ready}
       style={{ opacity: ready ? 1 : 0 }}
       className="seasonal-art"
-      viewBox={standaloneSource ? "0 0 1024 1024" : crop.viewBox}
+      viewBox={standaloneName ? "0 0 1024 1024" : crop.viewBox}
     >
       <defs>
         <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
@@ -48,9 +52,9 @@ export const SeasonalArt = ({
       </defs>
       <image
         href={ready ? source : undefined}
-        width={standaloneSource ? 1024 : 1254}
-        height={standaloneSource ? 1024 : 1254}
-        clipPath={standaloneSource ? undefined : `url(#${clipId})`}
+        width={standaloneName ? 1024 : 1254}
+        height={standaloneName ? 1024 : 1254}
+        clipPath={standaloneName ? undefined : `url(#${clipId})`}
       />
     </svg>
   );
@@ -174,8 +178,10 @@ const Particle = ({
 );
 
 const HalloweenWeb = () => {
-  const source = seasonalAssets["halloween-spider"];
-  const ready = useDecodedImage(source);
+  const { source, ready } = useDecodedImage(
+    seasonalAssets["halloween-spider"],
+    mobileAssets["halloween-spider"],
+  );
   return (
     <svg
       viewBox="0 0 160 160"

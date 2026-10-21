@@ -17,7 +17,9 @@
     "test:browser": "node --test tests/browser.test.mjs tests/seasonal-browser.test.mjs tests/seasons-browser.test.mjs",
     "assets:seasonal": "node scripts/build-seasonal-assets.mjs",
     "test:performance:browser": "node --test tests/performance-browser.test.mjs",
-    "measure:performance": "node scripts/measure-performance.mjs"
+    "test:artwork:browser": "node --test tests/mobile-artwork-browser.test.mjs",
+    "measure:performance": "node scripts/measure-performance.mjs",
+    "measure:server": "node scripts/measure-server-latency.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

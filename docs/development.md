@@ -131,6 +131,14 @@ responses and advance the browser clock, without writing saved game data.
 
 ## Initial-load performance and dashboard snapshots
 
+For server-latency investigations, run `npm run measure:server -- <origin>
+<output.json>` from `web/`. It probes the public icon, dashboard API, and homepage
+five times on a shared connection, recording DNS/TCP/TLS milestones, time to first
+byte, total time, `Server-Timing`, and Cloudflare ray IDs. Compare matching IDs
+with Sites Worker wall/CPU timings; do not label the unmeasured difference as
+database time or assume it proves a cold start. Response bodies, cookies, and
+visitor information are not saved.
+
 The homepage wraps its asynchronous data/authentication work in a server
 Suspense boundary. A public header and card placeholders stream first; standings
 remain server-rendered when the data resolves. The boundary is scoped to the
@@ -184,10 +192,18 @@ on their next refresh/focus, without push notifications.
 
 Original PNGs are retained in `web/assets/seasonal-originals`, outside the served
 public directory. Run `npm run assets:seasonal` from `web/` to generate transparent
-WebP files at quality 85 and alpha quality 100, plus the content-hashed URL manifest
-`web/lib/seasonal-assets.json`. Dimensions remain unchanged so atlas clipping
-coordinates remain valid. Review the output visually before removing superseded
-hashed files. Social preview images and SVG icons are independent.
+WebP files at quality 85 and alpha quality 100, plus the content-hashed URL
+manifests `web/lib/seasonal-assets.json` and `web/lib/seasonal-mobile-assets.json`.
+Desktop dimensions remain unchanged. Below 640 CSS pixels, use 768px atlases,
+512px standalone illustrations, and a 160px spider. The SVG image still occupies
+the original coordinate grid, preserving every clip and viewBox. Selection
+happens before download, with shared decode promises, low request priority,
+transparent loading/failure states, and stale-decode protection on resize.
+Mobile alpha is checked against a resampled original. Run
+`npm run test:artwork:browser` against a local production build for breakpoint,
+request-deduplication, failure, and late-decode checks. Review the output visually
+before removing superseded hashed files. Social preview images and SVG icons
+are independent.
 
 ### Reproducing measurements
 
