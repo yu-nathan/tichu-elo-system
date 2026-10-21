@@ -427,7 +427,6 @@ test("player profiles show accurate stats, restore focus, and preserve the match
         "Dragging me down",
         /^I'm (his|her|their) bitch$/,
         "Nemesis",
-        "Curbstomped",
       ]) {
         await expect(
           dialog.getByRole("heading", { name: title, exact: true }),
@@ -551,8 +550,17 @@ test("player profiles show accurate stats, restore focus, and preserve the match
           .getByRole("heading", { name: title, exact: true })
           .locator("..");
         const eligible = [...opponents].filter(
-          ([, record]) => record.games >= 3 && record[field] > 0,
+          ([, record]) =>
+            record.games >= 3 &&
+            record[field] > 0 &&
+            (field !== "wins" || record.wins / record.games > 0.5),
         );
+        if (field === "wins" && !eligible.length) {
+          await expect(
+            dialog.getByRole("heading", { name: title, exact: true }),
+          ).toHaveCount(0);
+          continue;
+        }
         const opponentScore = (record) =>
           score({
             successes: record[field],

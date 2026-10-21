@@ -652,6 +652,34 @@ test("opponent highlights require three games, include archived ties, and exclud
   }
 });
 
+test("curbstomped requires a win rate strictly over 50%", () => {
+  for (const wins of [0, 1, 2, 3, 4]) {
+    const games = Array.from({ length: 4 }, (_, index) =>
+      game(index + 1, [1, 2], [3, 4], index < wins),
+    );
+    const profile = calculatePlayerProfile(players, games, 1)!;
+    assert.deepEqual(
+      profile.curbstomped.map(({ id }) => id),
+      wins > 2 ? [3, 4] : [],
+    );
+  }
+});
+
+test("curbstomped excludes nonpositive records before weighting opponents", () => {
+  const games = [
+    ...Array.from({ length: 100 }, (_, index) =>
+      game(index + 1, [1, 2], [3, 4], index < 50),
+    ),
+    ...Array.from({ length: 3 }, (_, index) =>
+      game(index + 101, [1, 2], [5, 6], index < 2),
+    ),
+  ];
+  assert.deepEqual(
+    calculatePlayerProfile(players, games, 1)!.curbstomped.map(({ id }) => id),
+    [5, 6],
+  );
+});
+
 test("opponent rankings balance games against rate for both wins and losses", () => {
   for (const field of ["wins", "losses"] as const) {
     let id = 0;

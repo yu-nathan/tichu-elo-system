@@ -184,7 +184,10 @@ export const calculatePlayerProfile = (
   const opponentSummaries = [...opponents.values()];
   return {
     nemesis: leadingPlayers(opponentSummaries, "losses"),
-    curbstomped: leadingPlayers(opponentSummaries, "wins"),
+    curbstomped: leadingPlayers(
+      opponentSummaries.filter(({ wins, games }) => wins / games > 0.5),
+      "wins",
+    ),
     hasEligibleOpponents: opponentSummaries.some(
       ({ games }) => games >= MIN_OPPONENT_GAMES,
     ),
